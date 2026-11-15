@@ -219,8 +219,8 @@ export default function ScraperControlPage() {
   const calculateProgress = () => {
     if (!activeJob) return 0;
     if (activeJob.status === "COMPLETED") return 100;
-    const totalPages = Math.max(1, activeJob.end_page - activeJob.start_page);
-    const cur = (activeJob.current_page || activeJob.start_page) - activeJob.start_page;
+    const totalPages = Math.max(1, activeJob.end_page - activeJob.start_page + 1);
+    const cur = (activeJob.current_page || activeJob.start_page) - activeJob.start_page + 1;
     const pct = Math.round((cur / totalPages) * 100);
     return Math.min(Math.max(pct, 5), 95);
   };
@@ -466,7 +466,7 @@ export default function ScraperControlPage() {
                   <div>
                     <span className="text-[10px] uppercase font-bold text-gray-400 block">Page Scope</span>
                     <span className="font-semibold text-gray-800 block">
-                      Page {activeJob.start_page} to {activeJob.end_page - 1}
+                      Page {activeJob.start_page} to {activeJob.end_page}
                     </span>
                   </div>
                   <div>
@@ -519,7 +519,7 @@ export default function ScraperControlPage() {
                   <div className="p-3 bg-white border border-gray-200 rounded-lg text-center">
                     <span className="text-gray-400 text-[10px] uppercase font-bold block">Current Page</span>
                     <span className="text-lg font-bold text-gray-800">
-                      {activeJob.current_page || activeJob.start_page} / {activeJob.end_page - 1}
+                      {activeJob.current_page || activeJob.start_page} / {activeJob.end_page}
                     </span>
                   </div>
                   <div className="p-3 bg-white border border-gray-200 rounded-lg text-center">
@@ -642,7 +642,7 @@ export default function ScraperControlPage() {
                       {job.district_name}
                     </td>
                     <td className="py-3 px-4 text-center font-mono text-gray-600">
-                      Pages {job.start_page}–{job.end_page - 1}
+                      Pages {job.start_page}–{job.end_page}
                     </td>
                     <td className="py-3 px-4 text-center font-semibold text-emerald-600">
                       {job.projects_extracted || 0}

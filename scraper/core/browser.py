@@ -31,12 +31,21 @@ class BrowserManager:
         options = Options()
         if headless:
             options.add_argument("--headless=new")
+            options.add_argument("--window-size=1920,1080")
+            options.add_argument("--disable-popup-blocking")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
         options.add_argument("--start-maximized")
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.page_load_strategy = "normal"
+
+        prefs = {
+            "plugins.always_open_pdf_externally": False,
+            "profile.default_content_settings.popups": 0,
+            "download.prompt_for_download": False,
+        }
+        options.add_experimental_option("prefs", prefs)
         
         driver = webdriver.Chrome(options=options)
         driver.set_page_load_timeout(45)

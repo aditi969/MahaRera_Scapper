@@ -114,7 +114,7 @@ class ScraperWorker:
                 df["Last_Modified"] = last_modified
                 df["source_url"] = project_url
 
-                cert_dates = self.cert_extractor.get_cert_dates_with_retries(driver)
+                cert_dates = self.cert_extractor.get_cert_dates_with_retries(driver, df=df)
                 for _k, _v in cert_dates.items():
                     df[_k] = _v
 
@@ -283,7 +283,7 @@ class ScraperWorker:
         })
 
         try:
-            for page in range(start_page, page_end):
+            for page in range(start_page, page_end + 1):
                 if cancel_event and cancel_event.is_set():
                     self.logger.info("🛑 Scrape job cancellation detected.")
                     break
@@ -303,7 +303,7 @@ class ScraperWorker:
                     self.browser_manager.reset_driver_page_state(master_driver)
                     consecutive_page_failures = 0
 
-                self.logger.info(f"➡️ Processing Page {page}/{page_end - 1}...")
+                self.logger.info(f"➡️ Processing Page {page}/{page_end}...")
                 self._notify_progress("page_started", {"page": page})
 
                 tasks = self.fetch_page_project_tasks(master_driver, page, checkpoint_data)

@@ -94,8 +94,25 @@ def run_isolated_scraper(
             log_callback("WARNING", f"Database incremental upsert error: {ing_e}")
 
     # Configure scraper with performance bounds
+    import re
+    import shutil
+
     output_dir = PROJECT_ROOT / "scraper" / "outputs"
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    clean_dist = re.sub(r'\W+', '_', district_name.strip())
+    named_prefix = f"{clean_dist}_output_Pages_{start_page}_to_{end_page}"
+    named_csv = output_dir / f"{named_prefix}.csv"
+    named_xlsx = output_dir / f"{named_prefix}.xlsx"
+    named_sql = output_dir / f"{named_prefix}.sql"
+
+    root_csv = PROJECT_ROOT / f"{named_prefix}.csv"
+    root_xlsx = PROJECT_ROOT / f"{named_prefix}.xlsx"
+    root_sql = PROJECT_ROOT / f"{named_prefix}.sql"
+
+    job_csv = output_dir / f"output_{job_id}.csv"
+    job_xlsx = output_dir / f"output_{job_id}.xlsx"
+    job_sql = output_dir / f"output_{job_id}.sql"
 
     config = ScraperConfig(
         start_page=start_page,
@@ -104,8 +121,8 @@ def run_isolated_scraper(
         district_code=district_code,
         max_workers=max_workers,
         headless=headless,
-        output_csv=str(output_dir / f"output_{job_id}.csv"),
-        output_xlsx=str(output_dir / f"output_{job_id}.xlsx"),
+        output_csv=str(named_csv),
+        output_xlsx=str(named_xlsx),
         checkpoint_file=str(output_dir / f"checkpoint_{job_id}.json"),
         run_log_file=str(output_dir / f"run_log_{job_id}.txt"),
     )
@@ -119,18 +136,31 @@ def run_isolated_scraper(
     )
 
     try:
-        log_callback("INFO", f"Scraper worker initialized. Pages {start_page} to {end_page - 1} for {district_name}")
+        log_callback("INFO", f"Scraper worker initialized. Pages {start_page} to {end_page} for {district_name}")
         df = worker.run_scrape(page_start=start_page, page_end=end_page)
 
         # Generate PostgreSQL / PL/pgSQL dump file (.sql) alongside CSV and XLSX
         if df is not None and not df.empty:
             try:
                 from scraper.core.sql_exporter import generate_postgresql_dump
-                sql_file = output_dir / f"output_{job_id}.sql"
-                generate_postgresql_dump(df.to_dict(orient="records"), sql_file, job_id=job_id)
-                log_callback("INFO", f"PostgreSQL/PL-pgSQL script generated successfully: {sql_file}")
+                generate_postgresql_dump(df.to_dict(orient="records"), named_sql, job_id=job_id)
+                log_callback("INFO", f"PostgreSQL/PL-pgSQL script generated: {named_sql.name}")
+
+                # Copy named files to root workspace directory so user can open them directly:
+                if named_csv.exists():
+                    shutil.copy2(named_csv, root_csv)
+                    shutil.copy2(named_csv, job_csv)
+                if named_xlsx.exists():
+                    shutil.copy2(named_xlsx, root_xlsx)
+                    shutil.copy2(named_xlsx, job_xlsx)
+                if named_sql.exists():
+                    shutil.copy2(named_sql, root_sql)
+                    shutil.copy2(named_sql, job_sql)
+
+                log_callback("INFO", f"✅ Files created as requested: {named_prefix}.csv, {named_prefix}.xlsx, {named_prefix}.sql")
+                log_callback("INFO", f"✅ Project root copies: {root_csv.name}, {root_xlsx.name}, {root_sql.name}")
             except Exception as sql_err:
-                log_callback("WARNING", f"Could not generate SQL script: {sql_err}")
+                log_callback("WARNING", f"Could not generate SQL/copies: {sql_err}")
 
         # Check final status
         check_db = SessionLocal()

@@ -6,6 +6,7 @@ and submission/retry logic from Cell 4 of RERA_Scrapping_fixed_v3.ipynb.
 import base64
 import os
 import re
+import shutil
 import time
 from typing import Optional
 
@@ -29,8 +30,17 @@ class CaptchaSolver:
     def __init__(self, config: ScraperConfig, logger: ScraperLogger):
         self.config = config
         self.logger = logger
-        if os.path.exists(self.config.tesseract_path):
-            pytesseract.pytesseract.tesseract_cmd = self.config.tesseract_path
+        candidate_paths = [
+            self.config.tesseract_path,
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+            r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+            os.path.expandvars(r"%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe"),
+            shutil.which("tesseract") or "",
+        ]
+        for path in candidate_paths:
+            if path and os.path.exists(path):
+                pytesseract.pytesseract.tesseract_cmd = path
+                break
 
     @staticmethod
     def clean_captcha(captcha_text: str) -> str:

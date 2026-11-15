@@ -91,3 +91,10 @@ backend/database/migrations/versions/__pycache__/
 *.orig
 .mypy_cache/
 .ruff_cache/
+test_cap*.png
+test_captcha*.png
+run_log*.txt
+failed_pages.csv
+failed_projects.csv
+backend/failed_pages.csv
+scraper/outputs/

@@ -156,10 +156,14 @@ class NavigationManager:
 
     def check_and_dismiss_no_records_popup(self, driver) -> bool:
         try:
+            # If project result cards are already present on the page, records ARE found!
+            sections = driver.find_elements(By.CSS_SELECTOR, "div.row.shadow.p-3.mb-5.bg-body.rounded")
+            if sections and len(sections) > 0:
+                return False
+
             indicators = [
-                "//*[contains(translate(normalize-space(.), 'NO RECORDS FOUND', 'no records found'), 'no records found')]",
-                "//div[contains(@class, 'modal') and contains(@class, 'show') and contains(., 'No Records Found')]",
-                "//div[contains(@class, 'modal') and (contains(., 'Search Record') or contains(., 'No Records Found'))]"
+                "//div[contains(@class, 'modal') and contains(@class, 'show') and contains(translate(., 'NO RECORDS FOUND', 'no records found'), 'no records found')]",
+                "//*[contains(@class, 'modal') and contains(@class, 'show')]//*[contains(translate(text(), 'NO RECORDS FOUND', 'no records found'), 'no records found')]"
             ]
             popup_found = False
             for xpath in indicators:
@@ -207,6 +211,49 @@ class NavigationManager:
             pass
         return False
 
+    def apply_search_filters_and_search(self, driver, district_name: Optional[str] = None, pincode: Optional[str] = None, max_retries: int = 3) -> bool:
+        """Fallback to establish search session on MahaRERA by filling district and clicking Search."""
+        target_district = district_name or self.config.district_name
+        target_pincode = pincode or self.config.pincode
+
+        for attempt in range(1, max_retries + 1):
+            self.logger.info(f"🔄 Search filter fallback: navigating to {self.config.base_search_url} (attempt {attempt}/{max_retries})...")
+            if not self.browser.safe_get(driver, self.config.base_search_url, self.config.refresh_attempts):
+                self.logger.warning(f"safe_get failed to reach search page (attempt {attempt}/{max_retries})")
+                continue
+
+            if not self.select_district_dropdown(driver, target_district):
+                self.logger.warning(f"Failed to select district '{target_district}' on attempt {attempt}/{max_retries}.")
+                continue
+
+            if target_pincode:
+                self.fill_pincode(driver, target_pincode)
+
+            if not self.click_search_button(driver):
+                self.logger.warning(f"Could not click Search button (attempt {attempt}/{max_retries})")
+                continue
+
+            try:
+                WebDriverWait(driver, 15).until(
+                    EC.presence_of_element_located((
+                        By.CSS_SELECTOR, "div.row.shadow.p-3.mb-5.bg-body.rounded"
+                    ))
+                )
+            except TimeoutException:
+                pass
+
+            sections = driver.find_elements(By.CSS_SELECTOR, "div.row.shadow.p-3.mb-5.bg-body.rounded")
+            if sections and len(sections) > 0:
+                self.browser.set_driver_current_page(driver, 1)
+                self.logger.info(f"✅ Landed on results page 1 via district search filters ({len(sections)} sections visible).")
+                return True
+
+            if self.check_and_dismiss_no_records_popup(driver):
+                self.logger.info(f"🔄 'No Records Found' after search (attempt {attempt}/{max_retries}). Retrying search...")
+                continue
+
+        return False
+
     def build_page_url(self, page_number: int) -> str:
         return (
             f"{self.config.base_search_url}"
@@ -241,14 +288,29 @@ class NavigationManager:
             except TimeoutException:
                 pass
 
+            # Check if project cards exist first!
+            sections = driver.find_elements(By.CSS_SELECTOR, "div.row.shadow.p-3.mb-5.bg-body.rounded")
+            if sections and len(sections) > 0:
+                self.browser.set_driver_current_page(driver, target_page)
+                self.logger.info(f"Success Successfully landed on page {target_page} via direct URL ({len(sections)} sections visible).")
+                return True
+
             if self.check_and_dismiss_no_records_popup(driver):
                 self.logger.info(f"Retry No Records Found on page {target_page} URL. Retrying (attempt {attempt}/{max_nav_attempts})...")
                 time.sleep(self.config.retry_backoff_seconds)
                 continue
 
-            self.browser.set_driver_current_page(driver, target_page)
-            self.logger.info(f"Success Successfully landed on page {target_page} via direct URL.")
-            return True
+            sections = driver.find_elements(By.CSS_SELECTOR, "div.row.shadow.p-3.mb-5.bg-body.rounded")
+            if sections and len(sections) > 0:
+                self.browser.set_driver_current_page(driver, target_page)
+                self.logger.info(f"Success Successfully landed on page {target_page} via direct URL.")
+                return True
+
+        # Fallback for page 1 if direct URL navigation failed:
+        if target_page == 1:
+            self.logger.info("🔄 Direct URL navigation to page 1 failed. Falling back to form search filters...")
+            if self.apply_search_filters_and_search(driver):
+                return True
 
         self.browser.reset_driver_page_state(driver)
         self.logger.error(f"Failed go_to_results_page: failed to reach page {target_page} after {max_nav_attempts} attempts.")

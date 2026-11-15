@@ -135,6 +135,13 @@ class ScraperService:
         if req.headless:
             cmd.append("--headless")
 
+        env = os.environ.copy()
+        pythonpath = os.pathsep.join([str(_ROOT), str(BACKEND_DIR)])
+        if "PYTHONPATH" in env:
+            env["PYTHONPATH"] = f"{pythonpath}{os.pathsep}{env['PYTHONPATH']}"
+        else:
+            env["PYTHONPATH"] = pythonpath
+
         proc = subprocess.Popen(
             cmd,
             cwd=str(BACKEND_DIR),
@@ -142,6 +149,7 @@ class ScraperService:
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            env=env,
         )
         with self._lock:
             self.active_processes[job_id] = proc
@@ -182,6 +190,12 @@ class ScraperService:
                 repo = ScraperRepository(db)
                 job = repo.get_job(job_id)
                 if job:
+                    if proc.returncode != 0 and job.status in ("STARTING", "RUNNING"):
+                        repo.update_job_status(job_id, "FAILED", error_message=f"Process exited prematurely with code {proc.returncode}")
+                        repo.add_log(job_id, "ERROR", f"Worker process exited prematurely (exit code {proc.returncode})")
+                        db.commit()
+                        job = repo.get_job(job_id)
+
                     self.broadcast(job_id, {
                         "type": "complete",
                         "status": job.status,

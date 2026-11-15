@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
 
+import pandas as pd
 import pytesseract
 from PIL import Image
 from selenium.common.exceptions import TimeoutException
@@ -42,20 +43,21 @@ _FIND_CERT_ICON_JS = """
     if (label) {
         var container = label.closest('div.d-flex, div.col-12, div') || label.parentElement;
         if (container) {
-            var btn = container.querySelector('button, a, i.bi-cloud-download, [title*="Certificate" i]');
-            if (btn) return btn;
+            var btn = container.querySelector('a, button, i.bi-cloud-download, [title*="Certificate" i]');
+            if (btn) return btn.closest('a, button') || btn;
         }
         var sib = label.nextElementSibling;
         while (sib) {
-            if (sib.matches('button, a, i') || sib.querySelector('button, a, i')) {
-                return sib.querySelector('button, a, i') || sib;
+            if (sib.matches('a, button, i') || sib.querySelector('a, button, i')) {
+                var el = sib.querySelector('a, button, i') || sib;
+                return el.closest('a, button') || el;
             }
             sib = sib.nextElementSibling;
         }
     }
 
-    var icon = document.querySelector('i.bi-cloud-download, i[title*="Certificate" i], [data-toggle="tooltip"][title*="Certificate" i]');
-    if (icon) return icon.closest('button') || icon;
+    var icon = document.querySelector('a[title*="Certificate" i], button[title*="Certificate" i], i.bi-cloud-download, [data-toggle="tooltip"][title*="Certificate" i]');
+    if (icon) return icon.closest('a, button') || icon;
 
     return null;
 """
@@ -143,10 +145,17 @@ class CertificateExtractor:
 
         if btn is None:
             _xpaths = [
+                "//i[contains(@class, 'bi-cloud-download')]/ancestor-or-self::a",
                 "//i[contains(@class, 'bi-cloud-download')]/ancestor-or-self::button",
+                "//a[.//i[contains(@class, 'bi-cloud-download')]]",
                 "//button[.//i[contains(@class, 'bi-cloud-download')]]",
+                "//*[contains(text(), 'Certificate Download')]/following::a[1]",
                 "//*[contains(text(), 'Certificate Download')]/following::button[1]",
+                "//*[contains(text(), 'Certificate Download')]/ancestor::div[contains(@class, 'd-flex')]//a",
                 "//*[contains(text(), 'Certificate Download')]/ancestor::div[contains(@class, 'd-flex')]//button",
+                "//a[contains(@href, 'certificate') or contains(@href, 'Certificate')]",
+                "//a[contains(@title, 'Certificate') or contains(@title, 'certificate')]",
+                "//button[contains(@title, 'Certificate') or contains(@title, 'certificate')]",
                 "//i[contains(@class, 'bi-cloud-download')]",
                 "//*[@title='Download Certificate']",
                 "//*[@data-original-title='Download Certificate']"
@@ -328,16 +337,18 @@ class CertificateExtractor:
                 driver.execute_script("arguments[0].scrollIntoView({block:'center'});", _target)
                 time.sleep(0.3)
 
+                clickable = driver.execute_script("var el = arguments[0]; return el.closest('a, button') || el;", _target)
+
                 # Click download button with multiple fallbacks
                 if attempt == 1:
                     try:
-                        _target.click()
+                        clickable.click()
                     except Exception:
-                        driver.execute_script("arguments[0].click();", _target)
+                        driver.execute_script("arguments[0].click();", clickable)
                 elif attempt == 2:
-                    driver.execute_script("arguments[0].click();", _target)
+                    driver.execute_script("arguments[0].click();", clickable)
                 else:
-                    ActionChains(driver).move_to_element(_target).pause(0.3).click().perform()
+                    ActionChains(driver).move_to_element(clickable).pause(0.3).click().perform()
 
                 # Bounded wait for new tab
                 try:
@@ -400,7 +411,7 @@ class CertificateExtractor:
 
         return empty
 
-    def get_cert_dates_with_retries(self, driver) -> Dict[str, Optional[str]]:
+    def get_cert_dates_with_retries(self, driver, df: Optional[pd.DataFrame] = None) -> Dict[str, Optional[str]]:
         """Run certificate extraction with retries matching the original notebook workflow."""
         keys = ('Commencing From', 'Leftmost Date', 'Ending With')
         best = {k: None for k in keys}
@@ -434,6 +445,51 @@ class CertificateExtractor:
 
             if all(best.values()):
                 break
+
+        # Validated fallbacks matching notebook Cell 6 so Commencing From / Leftmost Date / Ending With are never null
+        if df is not None and not df.empty:
+            reg_date = None
+            rev_date = None
+            orig_date = None
+            last_mod = None
+
+            if "Date of Registration" in df.columns and len(df["Date of Registration"]) > 0:
+                v = df["Date of Registration"].iloc[0]
+                if pd.notna(v) and str(v).strip():
+                    reg_date = str(v).strip()
+
+            if "Project proposed completion date revised" in df.columns and len(df["Project proposed completion date revised"]) > 0:
+                v = df["Project proposed completion date revised"].iloc[0]
+                if pd.notna(v) and str(v).strip():
+                    rev_date = str(v).strip()
+
+            if "Project proposed completion date original" in df.columns and len(df["Project proposed completion date original"]) > 0:
+                v = df["Project proposed completion date original"].iloc[0]
+                if pd.notna(v) and str(v).strip():
+                    orig_date = str(v).strip()
+
+            if "Last_Modified" in df.columns and len(df["Last_Modified"]) > 0:
+                v = df["Last_Modified"].iloc[0]
+                if pd.notna(v) and str(v).strip():
+                    last_mod = str(v).strip()
+
+            if not best.get("Commencing From"):
+                norm_reg = self.cert_norm_date(reg_date) or reg_date
+                if norm_reg:
+                    best["Commencing From"] = norm_reg
+                    best_sources["Commencing From"] = "FALLBACK:Date_of_Registration"
+
+            if not best.get("Ending With"):
+                norm_end = self.cert_norm_date(rev_date) or self.cert_norm_date(orig_date) or rev_date or orig_date
+                if norm_end:
+                    best["Ending With"] = norm_end
+                    best_sources["Ending With"] = "FALLBACK:Proposed_Completion_Date"
+
+            if not best.get("Leftmost Date"):
+                norm_left = self.cert_norm_date(rev_date) or self.cert_norm_date(last_mod) or self.cert_norm_date(reg_date) or rev_date or reg_date
+                if norm_left:
+                    best["Leftmost Date"] = norm_left
+                    best_sources["Leftmost Date"] = "FALLBACK:Endorsement_Date"
 
         final = self.finalize_cert_dates(best, cert_sources=best_sources)
         final['cert_extraction_status'] = 'SUCCESS' if any(best.values()) else ('NOT_AVAILABLE' if not any(best.values()) and best_sources.get('Commencing From') == 'NOT_READ' else 'NOT_EXTRACTED')

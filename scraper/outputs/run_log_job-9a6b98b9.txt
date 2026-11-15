@@ -1,0 +1,137 @@
+[2026-11-14 20:57:07] [MainThread] ➡️ Processing Page 1/1...
+[2026-11-14 20:57:07] [MainThread] Link Navigating directly to page 1 via URL (attempt 1/2): https://maharera.maharashtra.gov.in/projects-search-result?project_name=&project_location=&project_completion_date=&project_state=27&project_district=520&carpetAreas=&completionPercentages=&project_division=&page=1&op=Search
+[2026-11-14 20:57:14] [MainThread] Success Successfully landed on page 1 via direct URL.
+[2026-11-14 20:57:14] [MainThread] Found 10 project sections on page 1 (preparing tasks for 10)
+[2026-11-14 20:57:15] [MainThread] ⚡ Launching ThreadPoolExecutor with 1 workers for 10 project tasks on page 1...
+[2026-11-14 20:57:15] [ScraperWorker_0] 🚀 Opening project 1 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/103
+[2026-11-14 20:57:15] [ScraperWorker_0] 🌐 Initializing dedicated Chrome WebDriver for worker thread...
+[2026-11-14 20:57:22] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> '72G124'
+[2026-11-14 20:57:29] [ScraperWorker_0] ✅ Captcha accepted.
+[2026-11-14 20:57:45] [ScraperWorker_0] [CERT] No new tab opened for certificate download within timeout.
+[2026-11-14 20:57:45] [ScraperWorker_0] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ', 'cert_extraction_status': 'DOWNLOAD_FAILED'}
+[2026-11-14 20:57:45] [ScraperWorker_0] Project 1 on page 1 scraped successfully! (RERA ID: P52000000003)
+[2026-11-14 20:57:45] [ScraperWorker_0] 🚀 Opening project 2 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/600
+[2026-11-14 20:58:03] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> '93LME8'
+[2026-11-14 20:58:11] [ScraperWorker_0] ✅ Captcha accepted.
+[2026-11-14 20:58:40] [ScraperWorker_0] [CERT] No new tab opened for certificate download within timeout.
+[2026-11-14 20:58:40] [ScraperWorker_0] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ', 'cert_extraction_status': 'DOWNLOAD_FAILED'}
+[2026-11-14 20:58:40] [ScraperWorker_0] Project 2 on page 1 scraped successfully! (RERA ID: P52000000480)
+[2026-11-14 20:58:40] [ScraperWorker_0] 🚀 Opening project 3 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/669
+[2026-11-14 20:58:42] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> ''
+[2026-11-14 20:58:44] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 20:58:46] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> 'CAADIK'
+[2026-11-14 20:58:48] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 20:58:50] [ScraperWorker_0] 🔄 Refreshing captcha (refresh round 1/1)...
+[2026-11-14 20:58:55] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> 'LH6A61'
+[2026-11-14 20:59:02] [ScraperWorker_0] ✅ Captcha accepted.
+[2026-11-14 20:59:13] [ScraperWorker_0] [CERT] No new tab opened for certificate download within timeout.
+[2026-11-14 20:59:13] [ScraperWorker_0] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ', 'cert_extraction_status': 'DOWNLOAD_FAILED'}
+[2026-11-14 20:59:14] [ScraperWorker_0] Project 3 on page 1 scraped successfully! (RERA ID: P52000000007)
+[2026-11-14 20:59:14] [ScraperWorker_0] 🚀 Opening project 4 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/702
+[2026-11-14 20:59:18] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> 'TMLC3D'
+[2026-11-14 20:59:20] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 20:59:22] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> 'HJCOI3'
+[2026-11-14 20:59:24] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 20:59:26] [ScraperWorker_0] 🔄 Refreshing captcha (refresh round 1/1)...
+[2026-11-14 20:59:34] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> 'TEBDKJ'
+[2026-11-14 20:59:36] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 20:59:37] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> 'AG4MFEFN'
+[2026-11-14 20:59:40] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 20:59:41] [ScraperWorker_0] ❌ 🚫 CAPTCHA_BLOCKED: CAPTCHA could not be resolved automatically within bounded limit. Recording failure and continuing.
+[2026-11-14 20:59:41] [ScraperWorker_0] ⚠️ Project 4 on page 1 (attempt 1/2) error: Captcha solve failed after retries
+[2026-11-14 20:59:50] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> ''
+[2026-11-14 20:59:53] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 20:59:54] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> '4E30BL'
+[2026-11-14 21:00:01] [ScraperWorker_0] ✅ Captcha accepted.
+[2026-11-14 21:00:12] [ScraperWorker_0] [CERT] No new tab opened for certificate download within timeout.
+[2026-11-14 21:00:12] [ScraperWorker_0] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ', 'cert_extraction_status': 'DOWNLOAD_FAILED'}
+[2026-11-14 21:00:12] [ScraperWorker_0] Project 4 on page 1 scraped successfully! (RERA ID: P52000000208)
+[2026-11-14 21:00:12] [ScraperWorker_0] 🚀 Opening project 5 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/1232
+[2026-11-14 21:00:18] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> ''
+[2026-11-14 21:00:20] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:00:22] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> 'NEK2C4'
+[2026-11-14 21:00:29] [ScraperWorker_0] ✅ Captcha accepted.
+[2026-11-14 21:01:12] [ScraperWorker_0] [CERT] No new tab opened for certificate download within timeout.
+[2026-11-14 21:01:12] [ScraperWorker_0] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ', 'cert_extraction_status': 'DOWNLOAD_FAILED'}
+[2026-11-14 21:01:12] [ScraperWorker_0] Project 5 on page 1 scraped successfully! (RERA ID: P52000007338)
+[2026-11-14 21:01:12] [ScraperWorker_0] 🚀 Opening project 6 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/1374
+[2026-11-14 21:01:20] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> ''
+[2026-11-14 21:01:22] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:01:24] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> 'OMO8KO0O'
+[2026-11-14 21:01:26] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:01:27] [ScraperWorker_0] 🔄 Refreshing captcha (refresh round 1/1)...
+[2026-11-14 21:01:38] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> '7TM9D2L'
+[2026-11-14 21:01:40] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:01:42] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> 'GLMBOF'
+[2026-11-14 21:01:44] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:01:45] [ScraperWorker_0] ❌ 🚫 CAPTCHA_BLOCKED: CAPTCHA could not be resolved automatically within bounded limit. Recording failure and continuing.
+[2026-11-14 21:01:45] [ScraperWorker_0] ⚠️ Project 6 on page 1 (attempt 1/2) error: Captcha solve failed after retries
+[2026-11-14 21:01:57] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> ''
+[2026-11-14 21:01:59] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:02:01] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> 'A8MF3D'
+[2026-11-14 21:02:08] [ScraperWorker_0] ✅ Captcha accepted.
+[2026-11-14 21:02:29] [ScraperWorker_0] [CERT] No new tab opened for certificate download within timeout.
+[2026-11-14 21:02:29] [ScraperWorker_0] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ', 'cert_extraction_status': 'DOWNLOAD_FAILED'}
+[2026-11-14 21:02:29] [ScraperWorker_0] Project 6 on page 1 scraped successfully! (RERA ID: P52000000270)
+[2026-11-14 21:02:29] [ScraperWorker_0] 🚀 Opening project 7 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/1388
+[2026-11-14 21:02:38] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> ''
+[2026-11-14 21:02:40] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:02:42] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> 'AJHKS5B'
+[2026-11-14 21:02:44] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:02:45] [ScraperWorker_0] 🔄 Refreshing captcha (refresh round 1/1)...
+[2026-11-14 21:02:55] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> 'DAI4B1'
+[2026-11-14 21:02:57] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:02:59] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> '4KI9BC'
+[2026-11-14 21:03:06] [ScraperWorker_0] ✅ Captcha accepted.
+[2026-11-14 21:03:18] [ScraperWorker_0] [CERT] No new tab opened for certificate download within timeout.
+[2026-11-14 21:03:18] [ScraperWorker_0] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ', 'cert_extraction_status': 'DOWNLOAD_FAILED'}
+[2026-11-14 21:03:18] [ScraperWorker_0] Project 7 on page 1 scraped successfully! (RERA ID: P52000000062)
+[2026-11-14 21:03:18] [ScraperWorker_0] 🚀 Opening project 8 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/1396
+[2026-11-14 21:03:23] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> ''
+[2026-11-14 21:03:25] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:03:27] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> 'SBLIK2'
+[2026-11-14 21:03:29] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:03:31] [ScraperWorker_0] 🔄 Refreshing captcha (refresh round 1/1)...
+[2026-11-14 21:03:39] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> 'OST7TIOA'
+[2026-11-14 21:03:41] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:03:43] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> '8N1GOB'
+[2026-11-14 21:03:45] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:03:47] [ScraperWorker_0] ❌ 🚫 CAPTCHA_BLOCKED: CAPTCHA could not be resolved automatically within bounded limit. Recording failure and continuing.
+[2026-11-14 21:03:47] [ScraperWorker_0] ⚠️ Project 8 on page 1 (attempt 1/2) error: Captcha solve failed after retries
+[2026-11-14 21:03:59] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> ''
+[2026-11-14 21:04:01] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:04:03] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> 'E3GC63'
+[2026-11-14 21:04:10] [ScraperWorker_0] ✅ Captcha accepted.
+[2026-11-14 21:04:38] [ScraperWorker_0] [CERT] No new tab opened for certificate download within timeout.
+[2026-11-14 21:04:38] [ScraperWorker_0] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ', 'cert_extraction_status': 'DOWNLOAD_FAILED'}
+[2026-11-14 21:04:39] [ScraperWorker_0] Project 8 on page 1 scraped successfully! (RERA ID: P52000004099)
+[2026-11-14 21:04:39] [ScraperWorker_0] 🚀 Opening project 9 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/1456
+[2026-11-14 21:04:47] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> ''
+[2026-11-14 21:04:49] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:04:51] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> 'FOJFOB'
+[2026-11-14 21:04:53] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:04:55] [ScraperWorker_0] 🔄 Refreshing captcha (refresh round 1/1)...
+[2026-11-14 21:05:07] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> 'N3D612'
+[2026-11-14 21:05:09] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:05:10] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> '72CA3B'
+[2026-11-14 21:05:17] [ScraperWorker_0] ✅ Captcha accepted.
+[2026-11-14 21:05:30] [ScraperWorker_0] [CERT] No new tab opened for certificate download within timeout.
+[2026-11-14 21:05:30] [ScraperWorker_0] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ', 'cert_extraction_status': 'DOWNLOAD_FAILED'}
+[2026-11-14 21:05:30] [ScraperWorker_0] Project 9 on page 1 scraped successfully! (RERA ID: P52000000721)
+[2026-11-14 21:05:30] [ScraperWorker_0] 🚀 Opening project 10 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/1494
+[2026-11-14 21:05:44] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> ''
+[2026-11-14 21:05:46] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:05:48] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> 'OJINOGSI'
+[2026-11-14 21:05:50] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:05:52] [ScraperWorker_0] 🔄 Refreshing captcha (refresh round 1/1)...
+[2026-11-14 21:06:03] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> 'MGO6OIME'
+[2026-11-14 21:06:05] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 21:06:07] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> '9N8183'
+[2026-11-14 21:06:14] [ScraperWorker_0] ✅ Captcha accepted.
+[2026-11-14 21:06:36] [ScraperWorker_0] [CERT] No new tab opened for certificate download within timeout.
+[2026-11-14 21:06:36] [ScraperWorker_0] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ', 'cert_extraction_status': 'DOWNLOAD_FAILED'}
+[2026-11-14 21:06:36] [ScraperWorker_0] Project 10 on page 1 scraped successfully! (RERA ID: P52000006083)
+[2026-11-14 21:06:36] [MainThread] 🏁 Completed processing page 1.
+[2026-11-14 21:06:36] [MainThread] 🧹 Cleaning up master browser session...
+[2026-11-14 21:06:38] [MainThread] Loading C:\Users\user\Desktop\Projects\scarpping\scraper\outputs\output_job-9a6b98b9.csv for Excel export and character validation...
+[2026-11-14 21:06:39] [MainThread] ✅ Excel export verified and written successfully to C:\Users\user\Desktop\Projects\scarpping\scraper\outputs\output_job-9a6b98b9.xlsx (10 rows, 55 columns).

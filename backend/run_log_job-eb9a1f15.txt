@@ -1,0 +1,124 @@
+[2026-11-14 19:54:41] [JobWorker-job-eb9a1f15] ➡️ Processing Page 1/1...
+[2026-11-14 19:54:41] [JobWorker-job-eb9a1f15] Link Navigating directly to page 1 via URL (attempt 1/2): https://maharera.maharashtra.gov.in/projects-search-result?project_name=&project_location=&project_completion_date=&project_state=27&project_district=520&carpetAreas=&completionPercentages=&project_division=&page=1&op=Search
+[2026-11-14 19:54:48] [JobWorker-job-eb9a1f15] Success Successfully landed on page 1 via direct URL.
+[2026-11-14 19:54:48] [JobWorker-job-eb9a1f15] Found 10 project sections on page 1 (preparing tasks for 10)
+[2026-11-14 19:54:49] [JobWorker-job-eb9a1f15] ⚡ Launching ThreadPoolExecutor with 2 workers for 10 project tasks on page 1...
+[2026-11-14 19:54:49] [ScraperWorker_0] 🚀 Opening project 1 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/103
+[2026-11-14 19:54:49] [ScraperWorker_1] 🚀 Opening project 2 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/600
+[2026-11-14 19:54:49] [ScraperWorker_0] 🌐 Initializing dedicated Chrome WebDriver for worker thread...
+[2026-11-14 19:54:49] [ScraperWorker_1] 🌐 Initializing dedicated Chrome WebDriver for worker thread...
+[2026-11-14 19:54:55] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> 'EJS5AJ3'
+[2026-11-14 19:54:55] [ScraperWorker_1] 🔎 Captcha OCR attempt 1 -> 'D87B80'
+[2026-11-14 19:54:58] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 19:55:00] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> 'SIA77A'
+[2026-11-14 19:55:02] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 19:55:03] [ScraperWorker_1] ✅ Captcha accepted.
+[2026-11-14 19:55:04] [ScraperWorker_0] 🔎 Captcha OCR attempt 3 -> '9S561NC'
+[2026-11-14 19:55:06] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 19:55:07] [ScraperWorker_0] 🔄 Refreshing captcha (refresh round 1/2)...
+[2026-11-14 19:55:17] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> 'M93DL6'
+[2026-11-14 19:55:24] [ScraperWorker_0] ✅ Captcha accepted.
+[2026-11-14 19:55:31] [ScraperWorker_1] [CERT] Pass 1/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 19:55:35] [ScraperWorker_0] [CERT] Pass 1/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 19:55:35] [ScraperWorker_1] [CERT] Pass 2/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 19:55:35] [ScraperWorker_1] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ'}
+[2026-11-14 19:55:35] [ScraperWorker_1] Project 2 on page 1 scraped successfully! (RERA ID: P52000000480)
+[2026-11-14 19:55:35] [ScraperWorker_1] 🚀 Opening project 3 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/669
+[2026-11-14 19:55:38] [ScraperWorker_1] 🔎 Captcha OCR attempt 1 -> ''
+[2026-11-14 19:55:39] [ScraperWorker_0] [CERT] Pass 2/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 19:55:39] [ScraperWorker_0] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ'}
+[2026-11-14 19:55:39] [ScraperWorker_0] Project 1 on page 1 scraped successfully! (RERA ID: P52000000003)
+[2026-11-14 19:55:39] [ScraperWorker_0] 🚀 Opening project 4 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/702
+[2026-11-14 19:55:40] [ScraperWorker_1] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 19:55:41] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> ''
+[2026-11-14 19:55:42] [ScraperWorker_1] 🔎 Captcha OCR attempt 2 -> '31T1EN7'
+[2026-11-14 19:55:43] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 19:55:44] [ScraperWorker_1] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 19:55:45] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> 'F271JM'
+[2026-11-14 19:55:45] [ScraperWorker_1] 🔎 Captcha OCR attempt 3 -> '57B551'
+[2026-11-14 19:55:52] [ScraperWorker_0] ✅ Captcha accepted.
+[2026-11-14 19:55:53] [ScraperWorker_1] ✅ Captcha accepted.
+[2026-11-14 19:56:01] [ScraperWorker_0] [CERT] Pass 1/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 19:56:03] [ScraperWorker_1] [CERT] Pass 1/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 19:56:05] [ScraperWorker_0] [CERT] Pass 2/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 19:56:05] [ScraperWorker_0] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ'}
+[2026-11-14 19:56:05] [ScraperWorker_0] Project 4 on page 1 scraped successfully! (RERA ID: P52000000208)
+[2026-11-14 19:56:05] [ScraperWorker_0] 🚀 Opening project 5 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/1232
+[2026-11-14 19:56:07] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> ''
+[2026-11-14 19:56:07] [ScraperWorker_1] [CERT] Pass 2/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 19:56:07] [ScraperWorker_1] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ'}
+[2026-11-14 19:56:07] [ScraperWorker_1] Project 3 on page 1 scraped successfully! (RERA ID: P52000000007)
+[2026-11-14 19:56:07] [ScraperWorker_1] 🚀 Opening project 6 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/1374
+[2026-11-14 19:56:09] [ScraperWorker_1] 🔎 Captcha OCR attempt 1 -> ''
+[2026-11-14 19:56:09] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 19:56:11] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> '1G259J'
+[2026-11-14 19:56:11] [ScraperWorker_1] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 19:56:13] [ScraperWorker_1] 🔎 Captcha OCR attempt 2 -> 'K8EFLM'
+[2026-11-14 19:56:18] [ScraperWorker_0] ✅ Captcha accepted.
+[2026-11-14 19:56:20] [ScraperWorker_1] ✅ Captcha accepted.
+[2026-11-14 19:56:40] [ScraperWorker_1] [CERT] Pass 1/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 19:56:43] [ScraperWorker_1] [CERT] Pass 2/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 19:56:44] [ScraperWorker_1] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ'}
+[2026-11-14 19:56:44] [ScraperWorker_1] Project 6 on page 1 scraped successfully! (RERA ID: P52000000270)
+[2026-11-14 19:56:44] [ScraperWorker_1] 🚀 Opening project 7 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/1388
+[2026-11-14 19:56:46] [ScraperWorker_1] 🔎 Captcha OCR attempt 1 -> 'DG4I1G4'
+[2026-11-14 19:56:48] [ScraperWorker_1] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 19:56:50] [ScraperWorker_1] 🔎 Captcha OCR attempt 2 -> 'EDL9YKO'
+[2026-11-14 19:56:52] [ScraperWorker_1] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 19:56:53] [ScraperWorker_1] 🔎 Captcha OCR attempt 3 -> 'H672B9'
+[2026-11-14 19:56:59] [ScraperWorker_0] [CERT] Pass 1/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 19:57:01] [ScraperWorker_1] ✅ Captcha accepted.
+[2026-11-14 19:57:02] [ScraperWorker_0] [CERT] Pass 2/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 19:57:02] [ScraperWorker_0] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ'}
+[2026-11-14 19:57:02] [ScraperWorker_0] Project 5 on page 1 scraped successfully! (RERA ID: P52000007338)
+[2026-11-14 19:57:02] [ScraperWorker_0] 🚀 Opening project 8 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/1396
+[2026-11-14 19:57:04] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> ''
+[2026-11-14 19:57:06] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 19:57:08] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> 'D9YEGB7'
+[2026-11-14 19:57:10] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 19:57:11] [ScraperWorker_1] [CERT] Pass 1/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 19:57:12] [ScraperWorker_0] 🔎 Captcha OCR attempt 3 -> ''
+[2026-11-14 19:57:28] [ScraperWorker_0] ⚠️ Captcha attempt error: HTTPConnectionPool(host='localhost', port=64683): Max retries exceeded with url: /session/873bf7335d57a248ac3ccdec9db3f3a3/element (Caused by NewConnectionError("HTTPConnection(host='localhost', port=64683): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[2026-11-14 19:57:29] [ScraperWorker_0] 🔄 Refreshing captcha (refresh round 1/2)...
+[2026-11-14 19:58:02] [ScraperWorker_0] ⚠️ Captcha attempt error: HTTPConnectionPool(host='localhost', port=64683): Max retries exceeded with url: /session/873bf7335d57a248ac3ccdec9db3f3a3/element (Caused by NewConnectionError("HTTPConnection(host='localhost', port=64683): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[2026-11-14 19:58:20] [ScraperWorker_0] ⚠️ Captcha attempt error: HTTPConnectionPool(host='localhost', port=64683): Max retries exceeded with url: /session/873bf7335d57a248ac3ccdec9db3f3a3/element (Caused by NewConnectionError("HTTPConnection(host='localhost', port=64683): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[2026-11-14 19:58:37] [ScraperWorker_0] ⚠️ Captcha attempt error: HTTPConnectionPool(host='localhost', port=64683): Max retries exceeded with url: /session/873bf7335d57a248ac3ccdec9db3f3a3/element (Caused by NewConnectionError("HTTPConnection(host='localhost', port=64683): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[2026-11-14 19:58:39] [ScraperWorker_0] 🔄 Refreshing captcha (refresh round 2/2)...
+[2026-11-14 19:59:11] [ScraperWorker_0] ⚠️ Captcha attempt error: HTTPConnectionPool(host='localhost', port=64683): Max retries exceeded with url: /session/873bf7335d57a248ac3ccdec9db3f3a3/element (Caused by NewConnectionError("HTTPConnection(host='localhost', port=64683): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[2026-11-14 19:59:29] [ScraperWorker_0] ⚠️ Captcha attempt error: HTTPConnectionPool(host='localhost', port=64683): Max retries exceeded with url: /session/873bf7335d57a248ac3ccdec9db3f3a3/element (Caused by NewConnectionError("HTTPConnection(host='localhost', port=64683): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[2026-11-14 19:59:47] [ScraperWorker_0] ⚠️ Captcha attempt error: HTTPConnectionPool(host='localhost', port=64683): Max retries exceeded with url: /session/873bf7335d57a248ac3ccdec9db3f3a3/element (Caused by NewConnectionError("HTTPConnection(host='localhost', port=64683): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[2026-11-14 19:59:48] [ScraperWorker_0] ❌ 🚫 Captcha could not be solved automatically after all retries.
+[2026-11-14 19:59:48] [ScraperWorker_0] ⚠️ Project 8 on page 1 (attempt 1/3) error: Captcha solve failed after retries
+[2026-11-14 19:59:54] [ScraperWorker_1] ⚠️ [CERT] Certificate button not found pass 2/2
+[2026-11-14 19:59:56] [ScraperWorker_1] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ'}
+[2026-11-14 19:59:56] [ScraperWorker_1] Project 7 on page 1 scraped successfully! (RERA ID: P52000000062)
+[2026-11-14 19:59:56] [ScraperWorker_1] 🚀 Opening project 9 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/1456
+[2026-11-14 20:00:10] [ScraperWorker_0] ⚠️ 💥 Thread driver was disconnected or died — restarting Chrome...
+[2026-11-14 20:00:12] [ScraperWorker_1] ⚠️ 💥 Thread driver was disconnected or died — restarting Chrome...
+[2026-11-14 20:00:32] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> 'IKNH4H'
+[2026-11-14 20:00:35] [ScraperWorker_1] 🔎 Captcha OCR attempt 1 -> '04ADGJ'
+[2026-11-14 20:00:39] [ScraperWorker_0] ✅ Captcha accepted.
+[2026-11-14 20:00:42] [ScraperWorker_1] ✅ Captcha accepted.
+[2026-11-14 20:01:07] [ScraperWorker_0] [CERT] Pass 1/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 20:01:08] [ScraperWorker_1] ⚠️ [CERT] No new tab within 12s (attempt 1/3)
+[2026-11-14 20:01:11] [ScraperWorker_0] [CERT] Pass 2/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 20:01:11] [ScraperWorker_0] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ'}
+[2026-11-14 20:01:11] [ScraperWorker_0] Project 8 on page 1 scraped successfully! (RERA ID: P52000004099)
+[2026-11-14 20:01:11] [ScraperWorker_0] 🚀 Opening project 10 on page 1: https://maharerait.maharashtra.gov.in/public/project/view/1494
+[2026-11-14 20:01:14] [ScraperWorker_0] 🔎 Captcha OCR attempt 1 -> ''
+[2026-11-14 20:01:16] [ScraperWorker_0] ❌ Invalid captcha, retrying automatically...
+[2026-11-14 20:01:18] [ScraperWorker_0] 🔎 Captcha OCR attempt 2 -> 'C448ND'
+[2026-11-14 20:01:20] [ScraperWorker_1] ⚠️ [CERT] No new tab within 12s (attempt 2/3)
+[2026-11-14 20:01:22] [ScraperWorker_1] [CERT] Pass 1/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 20:01:25] [ScraperWorker_0] ✅ Captcha accepted.
+[2026-11-14 20:01:26] [ScraperWorker_1] [CERT] Pass 2/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 20:01:26] [ScraperWorker_1] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ'}
+[2026-11-14 20:01:26] [ScraperWorker_1] Project 9 on page 1 scraped successfully! (RERA ID: P52000000721)
+[2026-11-14 20:01:45] [ScraperWorker_0] [CERT] Pass 1/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 20:01:51] [ScraperWorker_0] [CERT] Pass 2/2 incomplete {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None} — retrying
+[2026-11-14 20:01:51] [ScraperWorker_0] [CERT] FINAL DATES: {'Commencing From': None, 'Leftmost Date': None, 'Ending With': None, 'Cert_Date_Source': 'Commencing From=NOT_READ; Leftmost Date=NOT_READ; Ending With=NOT_READ'}
+[2026-11-14 20:01:51] [ScraperWorker_0] Project 10 on page 1 scraped successfully! (RERA ID: P52000006083)
+[2026-11-14 20:01:51] [JobWorker-job-eb9a1f15] 🏁 Completed processing page 1.
+[2026-11-14 20:01:51] [JobWorker-job-eb9a1f15] 🧹 Cleaning up master browser session...
+[2026-11-14 20:02:07] [JobWorker-job-eb9a1f15] Loading output_job-eb9a1f15.csv for Excel export and character validation...
+[2026-11-14 20:02:08] [JobWorker-job-eb9a1f15] ✅ Excel export verified and written successfully to Raigarh_output_NEW.xlsx (10 rows, 54 columns).

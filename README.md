@@ -114,28 +114,39 @@ scarpping/
 
 ## 4. Quickstart Guide (Local Execution)
 
-No Docker or external cloud services are required. The application runs entirely on your local machine.
+No Docker or external cloud services are required. The entire stack runs seamlessly on any Windows machine.
 
-### Step 1: Backend Setup & Startup
+### Method A: One-Click Launch (Recommended)
 
+1. **Install Prerequisites** (First Time Only):
+   - Double-click **`setup_dependencies.bat`** (or run `pip install -r requirements.txt` and `cd frontend && npm install`).
+2. **Start the Application**:
+   - Double-click **`start_all.bat`**.
+   - This automatically starts the **FastAPI Backend (Port 8000)**, the **Next.js Frontend (Port 3000)**, and opens your browser at `http://localhost:3000`.
+
+---
+
+### Method B: Manual Startup (2 Command Windows)
+
+#### Terminal 1 — Backend API (FastAPI)
 ```bash
-# Open a terminal in the project root
-cd backend
-
-# (Optional) Create and activate virtual environment
-python -m venv venv
-venv\Scripts\activate      # Windows
-# source venv/bin/activate  # macOS/Linux
-
-# Install backend dependencies
-pip install fastapi uvicorn pydantic pydantic-settings sqlalchemy alembic requests websockets pytest
-
-# Start the FastAPI server on port 8000
-python -m uvicorn app.main:app --port 8000 --reload
+# In the project root:
+run_backend.bat
+# Or using Python:
+python run_backend.py
 ```
-The backend API is now running at `http://127.0.0.1:8000`.
-- API Health: `http://127.0.0.1:8000/api/health`
-- Interactive Swagger Docs: `http://127.0.0.1:8000/docs`
+- API Docs: `http://127.0.0.1:8000/docs`
+- Health check: `http://127.0.0.1:8000/api/health`
+
+#### Terminal 2 — Frontend UI (Next.js)
+```bash
+# In the project root:
+run_frontend.bat
+# Or manually:
+cd frontend
+npm run dev
+```
+- Web Application: `http://localhost:3000`
 
 ---
 

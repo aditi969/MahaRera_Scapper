@@ -79,18 +79,44 @@ class ScraperService:
         db = SessionLocal()
         try:
             repo = ScraperRepository(db)
+            target_dist = req.district_name if req.district_name and req.district_name != "All / Any District" else ""
+            target_code = req.district_code if req.district_code and target_dist else ""
+            if not target_code and target_dist:
+                from scraper.core.navigation import MAHARASHTRA_DISTRICT_CODE_MAP
+                target_code = MAHARASHTRA_DISTRICT_CODE_MAP.get(target_dist.strip().lower(), "")
+
+            filters_payload = {
+                "district_name": target_dist,
+                "district_code": target_code,
+                "project_type_category": req.project_type_category or "Registered Projects",
+                "search_query": req.search_query or "",
+                "pincode": req.pincode or "",
+                "completion_date": req.completion_date or "",
+                "state": req.state or "MAHARASHTRA",
+                "division": req.division or "",
+                "taluka": req.taluka or "",
+                "village": req.village or "",
+                "smart_date_check": req.smart_date_check,
+                "scrape_all_pages": req.scrape_all_pages,
+            }
+            display_dist = target_dist or (f"Query: {req.search_query}" if req.search_query else (f"Pin: {req.pincode}" if req.pincode else "All Districts"))
+            page_scope_log = "all available pages" if req.scrape_all_pages else f"pages {req.start_page} to {req.end_page}"
             job = repo.create_job({
                 "job_id": job_id,
-                "district_name": req.district_name,
-                "district_code": req.district_code,
+                "district_name": display_dist,
+                "district_code": target_code,
                 "start_page": req.start_page,
-                "end_page": req.end_page,
+                "end_page": None if req.scrape_all_pages else req.end_page,
                 "headless": req.headless,
                 "max_workers": req.max_workers,
                 "status": "STARTING",
+                "filters_json": filters_payload,
                 "started_at": datetime.now(),
             })
-            repo.add_log(job_id, "INFO", f"Job registered for {req.district_name} (pages {req.start_page} to {req.end_page})")
+            filter_desc = f"query='{req.search_query}' " if req.search_query else ""
+            if req.pincode:
+                filter_desc += f"pin='{req.pincode}' "
+            repo.add_log(job_id, "INFO", f"Job registered for {display_dist} ({page_scope_log}) {filter_desc}".strip())
             db.commit()
 
             # Construct clean response dictionary while session is active (prevents DetachedInstanceError)
@@ -109,6 +135,8 @@ class ScraperService:
                 "current_page": job.current_page or req.start_page,
                 "certificates_extracted": job.certificates_extracted or 0,
                 "certificates_failed": job.certificates_failed or 0,
+                "filters_json": job.filters_json,
+                "summary_json": job.summary_json,
                 "error_message": job.error_message,
                 "started_at": job.started_at,
                 "completed_at": job.completed_at,
@@ -121,19 +149,47 @@ class ScraperService:
         finally:
             db.close()
 
+        # Resolve dedicated virtual environment python and isolated runner script
+        venv_python = _ROOT / ".venv" / "Scripts" / "python.exe"
+        python_exe = str(venv_python) if venv_python.exists() else sys.executable
+        runner_script = Path(__file__).resolve().parent / "scraper_runner.py"
+
         # Spawn isolated background process decoupled from Uvicorn reload
         cmd = [
-            sys.executable,
-            "-m", "app.services.scraper_runner",
-            "--job-id", job_id,
-            "--district-name", req.district_name,
-            "--district-code", req.district_code,
+            python_exe,
+            str(runner_script),
+            "--job-id", str(job_id),
             "--start-page", str(req.start_page),
-            "--end-page", str(req.end_page),
             "--max-workers", str(req.max_workers),
         ]
+        if req.scrape_all_pages:
+            cmd.append("--scrape-all-pages")
+        elif req.end_page:
+            cmd.extend(["--end-page", str(req.end_page)])
+        if target_dist:
+            cmd.extend(["--district-name", str(target_dist)])
+        if target_code:
+            cmd.extend(["--district-code", str(target_code)])
+        if req.project_type_category:
+            cmd.extend(["--project-type-category", str(req.project_type_category)])
+        if req.search_query:
+            cmd.extend(["--search-query", str(req.search_query)])
+        if req.pincode:
+            cmd.extend(["--pincode", str(req.pincode)])
+        if req.completion_date:
+            cmd.extend(["--completion-date", str(req.completion_date)])
+        if req.state:
+            cmd.extend(["--state", str(req.state)])
+        if req.division:
+            cmd.extend(["--division", str(req.division)])
+        if req.taluka:
+            cmd.extend(["--taluka", str(req.taluka)])
+        if req.village:
+            cmd.extend(["--village", str(req.village)])
         if req.headless:
             cmd.append("--headless")
+        if req.smart_date_check:
+            cmd.append("--smart-date-check")
 
         env = os.environ.copy()
         pythonpath = os.pathsep.join([str(_ROOT), str(BACKEND_DIR)])
@@ -141,6 +197,8 @@ class ScraperService:
             env["PYTHONPATH"] = f"{pythonpath}{os.pathsep}{env['PYTHONPATH']}"
         else:
             env["PYTHONPATH"] = pythonpath
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
 
         proc = subprocess.Popen(
             cmd,
@@ -148,6 +206,8 @@ class ScraperService:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             bufsize=1,
             env=env,
         )
@@ -171,12 +231,32 @@ class ScraperService:
                 for line in iter(proc.stdout.readline, ""):
                     line_str = line.strip()
                     if line_str:
+                        # Filter out internal ChromeDriver C++ binary addresses (e.g. "(No symbol) [0x7ff...]")
+                        if line_str.startswith("(No symbol) [") or line_str == "Stacktrace:" or line_str.startswith("GetHandleVerifier [0x"):
+                            continue
+
+                        level = "INFO"
+                        if "ERROR" in line_str or "Traceback" in line_str or "Exception" in line_str or "Error:" in line_str or "failed" in line_str.lower():
+                            level = "ERROR"
+                        elif "WARNING" in line_str:
+                            level = "WARNING"
+
                         self.broadcast(job_id, {
                             "type": "log",
-                            "level": "INFO",
+                            "level": level,
                             "message": line_str,
                             "timestamp": datetime.now().isoformat()
                         })
+
+                        # Always persist process output logs into DB so user can see them in UI
+                        try:
+                            log_db = SessionLocal()
+                            log_repo = ScraperRepository(log_db)
+                            log_repo.add_log(job_id, level, line_str[:1000])
+                            log_db.commit()
+                            log_db.close()
+                        except Exception:
+                            pass
             proc.wait()
         except Exception:
             pass
@@ -201,6 +281,7 @@ class ScraperService:
                         "status": job.status,
                         "projects_extracted": job.projects_extracted,
                         "projects_failed": job.projects_failed,
+                        "summary": job.summary_json,
                     })
             finally:
                 db.close()
@@ -225,4 +306,35 @@ class ScraperService:
 
         self.broadcast(job_id, {"type": "status", "status": "CANCELLED", "message": "Job cancelled"})
         return True
+
+    def retry_job(self, job_id: str) -> Dict[str, Any]:
+        """Restart or retry scraping for a previous job, picking up from checkpoints to retry failed projects/pages."""
+        db = SessionLocal()
+        try:
+            repo = ScraperRepository(db)
+            old_job = repo.get_job(job_id)
+            if not old_job:
+                raise ValueError(f"Job '{job_id}' not found.")
+            filters = old_job.filters_json or {}
+            start_req = StartJobRequest(
+                district_name=filters.get("district_name") or (old_job.district_name if old_job.district_name and not old_job.district_name.startswith("All") else None),
+                district_code=filters.get("district_code") or old_job.district_code,
+                start_page=old_job.start_page or 1,
+                end_page=old_job.end_page or 2,
+                max_workers=old_job.max_workers or 1,
+                headless=old_job.headless if old_job.headless is not None else True,
+                project_type_category=filters.get("project_type_category", "Registered Projects"),
+                search_query=filters.get("search_query", ""),
+                pincode=filters.get("pincode", ""),
+                completion_date=filters.get("completion_date", ""),
+                state=filters.get("state", "MAHARASHTRA"),
+                division=filters.get("division", ""),
+                taluka=filters.get("taluka", ""),
+                village=filters.get("village", ""),
+                smart_date_check=filters.get("smart_date_check", True),
+                scrape_all_pages=filters.get("scrape_all_pages", False),
+            )
+        finally:
+            db.close()
+        return self.start_job(start_req)
 

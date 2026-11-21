@@ -98,3 +98,24 @@ failed_pages.csv
 failed_projects.csv
 backend/failed_pages.csv
 scraper/outputs/
+
+# Storage temp and archive
+storage/temp/
+storage/archive/
+*.db
+*.db-shm
+*.db-wal
+
+# Tools and git helper
+tools/
+git_helper.py
+frontend/tsconfig.tsbuildinfo
+storage/temp/
+storage/archive/
+
+# Tools and git helper
+tools/
+git_helper.py
+frontend/tsconfig.tsbuildinfo
+storage/temp/
+storage/archive/

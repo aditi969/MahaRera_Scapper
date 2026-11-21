@@ -65,3 +65,25 @@ class ScraperRepository:
             .limit(limit)
             .all()
         )
+
+    def delete_job(self, job_id: str) -> bool:
+        job = self.get_job(job_id)
+        if not job:
+            return False
+        self.session.query(ScrapeLog).filter(ScrapeLog.job_id == job_id).delete(synchronize_session=False)
+        self.session.delete(job)
+        self.session.commit()
+        return True
+
+    def clear_all_jobs(self, include_running: bool = False) -> int:
+        query = self.session.query(ScrapeJob)
+        if not include_running:
+            query = query.filter(ScrapeJob.status.notin_(["STARTING", "RUNNING"]))
+        jobs = query.all()
+        job_ids = [j.job_id for j in jobs]
+        if job_ids:
+            self.session.query(ScrapeLog).filter(ScrapeLog.job_id.in_(job_ids)).delete(synchronize_session=False)
+            for j in jobs:
+                self.session.delete(j)
+            self.session.commit()
+        return len(job_ids)

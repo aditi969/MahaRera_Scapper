@@ -246,3 +246,16 @@ While SQLite is configured by default for effortless zero-setup local execution,
 
 ## 8. License & Compliance
 This software processes publicly accessible regulatory information under MahaRERA public domain policies for analytical transparency and compliance monitoring.
+
+
+Backend:
+
+cd "D:\Rera Web App\scarpping\scarpping"
+.\run_backend.bat
+
+
+Frontend:
+
+cd "D:\Rera Web App\scarpping\scarpping"
+.\run_frontend.bat
+

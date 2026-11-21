@@ -51,6 +51,8 @@ import {
 const STATUS_COLORS: Record<string, string> = {
   Active: "#2563EB",
   Completed: "#16A34A",
+  Lapsed: "#D97706",
+  "De-Registered": "#DC2626",
   Other: "#6B7280",
 };
 
@@ -74,7 +76,7 @@ export default function OverviewPage() {
         fetchDistricts(),
         fetchStatusStats(),
         fetchRegistrationTrend(),
-        fetchProjects({ page: 1, pageSize: 6, sortBy: "created_at", sortDir: "desc" }),
+        fetchProjects({ page: 1, pageSize: 6, sortBy: "date_of_registration", sortDir: "desc" }),
         fetchDataQuality(),
       ]);
       setOverview(ov);

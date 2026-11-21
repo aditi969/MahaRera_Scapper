@@ -30,25 +30,25 @@ class IngestionPipeline:
         cleaned, errors, validation_status = validate_project_record(raw_record)
         rera_id = cleaned["rera_id"]
 
+        allowed_cols = {c.name for c in Project.__table__.columns}
+        valid_cleaned = {k: v for k, v in cleaned.items() if k in allowed_cols}
+
         # Deduplication check
         existing = self.db.query(Project).filter(Project.rera_id == rera_id).first()
         is_new = existing is None
 
         if existing:
-            # Update fields while preserving original creation date
-            for key, val in cleaned.items():
+            # Update fields while preserving previously available data if new field is missing/empty
+            for key, val in valid_cleaned.items():
                 if hasattr(existing, key):
+                    old_val = getattr(existing, key)
+                    # If incoming value is empty/null and old value was present, preserve old value
+                    if (val is None or val == "" or val == {} or val == []) and (old_val is not None and old_val != "" and old_val != {} and old_val != []):
+                        continue
                     setattr(existing, key, val)
-            existing.updated_at = datetime.now()
-            if job_id:
-                existing.scrape_job_id = job_id
             project = existing
         else:
-            project = Project(
-                **cleaned,
-                scrape_job_id=job_id,
-                scraped_at=datetime.now(),
-            )
+            project = Project(**valid_cleaned)
             self.db.add(project)
 
         self.db.flush()

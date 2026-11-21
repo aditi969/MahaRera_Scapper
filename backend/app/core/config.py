@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import List, Union
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_CURRENT_FILE = Path(__file__).resolve()
+_PROJECT_ROOT = _CURRENT_FILE.parents[3]  # d:\Rera Web App\scarpping\scarpping
+_WORKSPACE_ROOT = _CURRENT_FILE.parents[4] # d:\Rera Web App\scarpping
 
 
 class Settings(BaseSettings):
@@ -16,7 +21,13 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=(".env", "../.env"),
+        env_file=(
+            str(_PROJECT_ROOT / ".env"),
+            str(_WORKSPACE_ROOT / ".env"),
+            str(_CURRENT_FILE.parents[2] / ".env"),
+            ".env",
+            "../.env",
+        ),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -24,10 +35,10 @@ class Settings(BaseSettings):
 
     # ── Database ──────────────────────────────────────────────────────────────
     DATABASE_URL: str = (
-        "postgresql://rera_user:rera_pass@localhost:5432/rera_insight"
+        "postgresql://postgres:%40ditiB123@localhost:5432/postgres"
     )
     ASYNC_DATABASE_URL: str = (
-        "postgresql+asyncpg://rera_user:rera_pass@localhost:5432/rera_insight"
+        "postgresql+asyncpg://postgres:%40ditiB123@localhost:5432/postgres"
     )
 
     # ── Security ─────────────────────────────────────────────────────────────

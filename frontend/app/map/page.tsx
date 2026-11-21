@@ -7,7 +7,7 @@ import { Filter, MapPin, RefreshCw } from "lucide-react";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { FilterSelect } from "../../components/ui/FilterSelect";
 import { ErrorState } from "../../components/ui/ErrorState";
-import { fetchMapLocations } from "../../lib/api";
+import { fetchMapLocations, fetchDistricts, fetchStatusStats } from "../../lib/api";
 import { MapProject } from "../../types";
 
 const FullMap = dynamic(
@@ -22,19 +22,6 @@ const FullMap = dynamic(
   }
 );
 
-const DISTRICT_OPTIONS = [
-  { label: "Raigarh", value: "Raigarh" },
-  { label: "Mumbai City", value: "Mumbai City" },
-  { label: "Mumbai Suburban", value: "Mumbai Suburban" },
-  { label: "Thane", value: "Thane" },
-  { label: "Pune", value: "Pune" },
-];
-
-const STATUS_OPTIONS = [
-  { label: "Active", value: "Active" },
-  { label: "Completed", value: "Completed" },
-];
-
 export default function InteractiveMapPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +29,21 @@ export default function InteractiveMapPage() {
   const [projects, setProjects] = useState<MapProject[]>([]);
   const [district, setDistrict] = useState("");
   const [status, setStatus] = useState("");
+  const [districtOptions, setDistrictOptions] = useState<{ label: string; value: string }[]>([]);
+  const [statusOptions, setStatusOptions] = useState<{ label: string; value: string }[]>([]);
+
+  useEffect(() => {
+    fetchDistricts()
+      .then((data) => {
+        setDistrictOptions(data.map((d) => ({ label: `${d.district} (${d.count})`, value: d.district })));
+      })
+      .catch(() => {});
+    fetchStatusStats()
+      .then((data) => {
+        setStatusOptions(data.map((s) => ({ label: `${s.status} (${s.count})`, value: s.status })));
+      })
+      .catch(() => {});
+  }, []);
 
   const loadMarkers = async () => {
     setLoading(true);
@@ -92,16 +94,16 @@ export default function InteractiveMapPage() {
           <FilterSelect
             value={district}
             onChange={setDistrict}
-            options={DISTRICT_OPTIONS}
+            options={districtOptions}
             placeholder="All Districts"
-            className="w-40 text-xs py-1.5"
+            className="w-48 text-xs py-1.5"
           />
           <FilterSelect
             value={status}
             onChange={setStatus}
-            options={STATUS_OPTIONS}
+            options={statusOptions}
             placeholder="All Statuses"
-            className="w-36 text-xs py-1.5"
+            className="w-40 text-xs py-1.5"
           />
         </div>
 
@@ -114,6 +116,10 @@ export default function InteractiveMapPage() {
           <div className="flex items-center gap-1.5">
             <span className="h-3 w-3 rounded-full bg-emerald-600 inline-block" />
             <span>Completed</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-full bg-amber-600 inline-block" />
+            <span>Lapsed</span>
           </div>
         </div>
       </div>

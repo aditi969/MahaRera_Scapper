@@ -139,12 +139,32 @@ export interface DataQualityMetrics {
   by_extraction_status: { status: string; count: number }[];
 }
 
+export interface ScrapeJobSummary {
+  total_discovered?: number;
+  new_projects?: number;
+  existing_checked?: number;
+  unchanged_skipped?: number;
+  updated_rescrapped?: number;
+  successful_scraped?: number;
+  failed_projects?: number;
+  total_saved_or_updated?: number;
+  project_details?: Record<string, {
+    rera_id?: string;
+    project_name?: string;
+    status: string;
+    website_last_modified?: string;
+    stored_last_modified?: string;
+    timestamp?: number;
+    error?: string;
+  }>;
+}
+
 export interface ScrapeJobItem {
   job_id: string;
   district_name: string;
   district_code: string;
   start_page: number;
-  end_page: number;
+  end_page?: number | null;
   headless: boolean;
   max_workers: number;
   status: string;
@@ -154,6 +174,8 @@ export interface ScrapeJobItem {
   current_page?: number;
   certificates_extracted?: number;
   certificates_failed?: number;
+  filters_json?: Record<string, any> | null;
+  summary_json?: ScrapeJobSummary | null;
   error_message?: string | null;
   started_at?: string | null;
   completed_at?: string | null;
@@ -171,10 +193,45 @@ export interface ScrapeLogItem {
 }
 
 export interface StartScrapeRequest {
-  district_name: string;
-  district_code: string;
-  start_page: number;
-  end_page: number;
+  district_name?: string;
+  district_code?: string;
+  start_page?: number;
+  end_page?: number | null;
+  scrape_all_pages?: boolean;
   headless: boolean;
   max_workers: number;
+  project_type_category?: string;
+  search_query?: string;
+  pincode?: string;
+  completion_date?: string;
+  state?: string;
+  division?: string;
+  taluka?: string;
+  village?: string;
+  smart_date_check?: boolean;
+}
+
+export interface ScrapePreviewRequest {
+  district_name?: string;
+  search_query?: string;
+  pincode?: string;
+  completion_date?: string;
+  project_type_category?: string;
+}
+
+export interface ScrapePreviewRecord {
+  rera_id: string;
+  project_name?: string;
+  district?: string;
+  pincode?: string;
+  last_modified?: string;
+  proposed_completion_date?: string;
+  status?: string;
+}
+
+export interface ScrapePreviewResponse {
+  matching_in_database: number;
+  existing_projects: ScrapePreviewRecord[];
+  sample_records: ScrapePreviewRecord[];
+  filters_applied: Record<string, any>;
 }

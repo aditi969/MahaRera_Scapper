@@ -9,6 +9,8 @@ import {
   ProjectTypeStat,
   ScrapeJobItem,
   ScrapeLogItem,
+  ScrapePreviewRequest,
+  ScrapePreviewResponse,
   StartScrapeRequest,
   StatusStat,
   TrendPoint,
@@ -125,6 +127,13 @@ export async function fetchScrapeLogs(jobId: string): Promise<ScrapeLogItem[]> {
   return request<ScrapeLogItem[]>(`/api/scraper/logs/${jobId}`);
 }
 
+export async function previewScrapeJob(data: ScrapePreviewRequest): Promise<ScrapePreviewResponse> {
+  return request<ScrapePreviewResponse>("/api/scraper/preview", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
 export async function startScrapeJob(data: StartScrapeRequest): Promise<ScrapeJobItem> {
   return request<ScrapeJobItem>("/api/scraper/start", {
     method: "POST",
@@ -135,6 +144,24 @@ export async function startScrapeJob(data: StartScrapeRequest): Promise<ScrapeJo
 export async function cancelScrapeJob(jobId: string): Promise<{ message: string; status: string }> {
   return request<{ message: string; status: string }>(`/api/scraper/cancel/${jobId}`, {
     method: "POST",
+  });
+}
+
+export async function retryScrapeJob(jobId: string): Promise<ScrapeJobItem> {
+  return request<ScrapeJobItem>(`/api/scraper/retry/${jobId}`, {
+    method: "POST",
+  });
+}
+
+export async function clearScrapeJobs(): Promise<{ message: string; cleared_count: number }> {
+  return request<{ message: string; cleared_count: number }>("/api/scraper/jobs", {
+    method: "DELETE",
+  });
+}
+
+export async function deleteScrapeJob(jobId: string): Promise<{ message: string }> {
+  return request<{ message: string }>(`/api/scraper/jobs/${jobId}`, {
+    method: "DELETE",
   });
 }
 

@@ -5,9 +5,39 @@ parses multi-format dates, normalizes districts and statuses, and detects data q
 """
 from __future__ import annotations
 
+import ast
+import json
 import re
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
+
+
+from app.processing.transformer import transform_raw_to_standard_jsonb
+
+
+def parse_dict_or_json(val: Any) -> Dict[str, Any]:
+    """Parse dictionary from dict, JSON string, or Python string representation."""
+    if not val or val == "None":
+        return {}
+    if isinstance(val, dict):
+        return val
+    if isinstance(val, str):
+        val_str = val.strip()
+        if not val_str or val_str in ("{}", "[]", "None", "nan", "null"):
+            return {}
+        try:
+            res = json.loads(val_str)
+            if isinstance(res, dict):
+                return res
+        except Exception:
+            pass
+        try:
+            res = ast.literal_eval(val_str)
+            if isinstance(res, dict):
+                return res
+        except Exception:
+            pass
+    return {}
 
 
 def parse_date(val: Any) -> Optional[date]:
@@ -120,6 +150,8 @@ def validate_project_record(raw: Dict[str, Any]) -> Tuple[Dict[str, Any], List[s
 
     # 5. Area details
     cleaned["total_land_area"] = str(raw.get("Total Land Area") or raw.get("total_land_area") or "").strip() or None
+    cleaned["aggregate_area"] = str(raw.get("Aggregate area") or raw.get("aggregate_area") or "").strip() or None
+    cleaned["land_area_applied"] = str(raw.get("Land Area for Project Applied for this Registration") or raw.get("land_area_applied") or "").strip() or None
     cleaned["permissible_builtup_area"] = str(raw.get("Permissible Builtup Area") or raw.get("permissible_builtup_area") or "").strip() or None
     cleaned["sanctioned_builtup_area"] = str(raw.get("Sanctioned Builtup Area") or raw.get("sanctioned_builtup_area") or "").strip() or None
 
@@ -145,15 +177,33 @@ def validate_project_record(raw: Dict[str, Any]) -> Tuple[Dict[str, Any], List[s
     cleaned["ifsc_code"] = str(raw.get("IFSC Code") or raw.get("ifsc_code") or "").strip() or None
     cleaned["bank_address"] = str(raw.get("Bank Address") or raw.get("bank_address") or "").strip() or None
 
-    # 10. Complex structures (JSON)
-    cleaned["bhk_details"] = raw.get("bhk_details") if isinstance(raw.get("bhk_details"), dict) else {}
-    cleaned["building_details"] = raw.get("building_details") if isinstance(raw.get("building_details"), dict) else {}
-    cleaned["summary_of_apartments"] = raw.get("Summary_of_Apartments/Units") or raw.get("summary_of_apartments") or {}
-    if not isinstance(cleaned["summary_of_apartments"], dict):
-        cleaned["summary_of_apartments"] = {}
-    cleaned["all_parking_details"] = raw.get("All_Parking_Details") or raw.get("all_parking_details") or {}
-    if not isinstance(cleaned["all_parking_details"], dict):
-        cleaned["all_parking_details"] = {}
+    # 10. Standardized JSONB structures (Normalized for PostgreSQL storage)
+    raw_bhk = raw.get("bhk_details")
+    raw_bld = raw.get("building_details")
+    raw_apt = raw.get("Summary_of_Apartments/Units") or raw.get("summary_of_apartments")
+    raw_pkg = raw.get("All_Parking_Details") or raw.get("all_parking_details")
+
+    transformed = transform_raw_to_standard_jsonb(
+        bhk_raw=raw_bhk,
+        building_raw=raw_bld,
+        summary_raw=raw_apt,
+        parking_raw=raw_pkg,
+        project_metadata={
+            "rera_id": rera_id,
+            "registration_number": rera_id,
+            "project_name": cleaned.get("project_name"),
+            "district": cleaned.get("district"),
+            "bank_name": cleaned.get("bank_name"),
+            "ifsc_code": cleaned.get("ifsc_code"),
+            "bank_address": cleaned.get("bank_address")
+        }
+    )
+
+    cleaned["bhk_details"] = transformed["bhk_details"]
+    cleaned["building_details"] = transformed["building_details"]
+    cleaned["summary_of_apartments"] = transformed["summary_of_apartments"]
+    cleaned["all_parking_details"] = transformed["all_parking_details"]
+    cleaned["units_json"] = transformed["units_json"]
 
     # 11. Scraper / Certificate metadata
     cleaned["organization"] = str(raw.get("Organization") or raw.get("organization") or "").strip() or None

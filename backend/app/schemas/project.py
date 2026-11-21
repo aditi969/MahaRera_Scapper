@@ -68,6 +68,7 @@ class ProjectResponse(BaseModel):
     building_details: Optional[Dict[str, Any]] = None
     summary_of_apartments: Optional[Dict[str, Any]] = None
     all_parking_details: Optional[Dict[str, Any]] = None
+    units_json: Optional[Dict[str, Any]] = None
     organization: Optional[str] = None
     last_modified: Optional[str] = None
     commencing_from: Optional[str] = None

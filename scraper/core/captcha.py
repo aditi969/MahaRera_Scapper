@@ -148,6 +148,9 @@ class CaptchaSolver:
             pass
 
     def save_captcha_image_from_canvas(self, driver, captcha_element, save_path: str = "captcha_image.png") -> str:
+        if not os.path.isabs(save_path):
+            from scraper.core.storage import get_temp_file_path
+            save_path = str(get_temp_file_path(os.path.basename(save_path)))
         try:
             self.wait_for_captcha_ready(driver, captcha_element)
             data_url = self._get_captcha_data_url(driver, captcha_element)
@@ -164,6 +167,9 @@ class CaptchaSolver:
         return save_path
 
     def solve_one_captcha(self, driver, image_name: str = "captcha_image.png") -> str:
+        if not os.path.isabs(image_name):
+            from scraper.core.storage import get_temp_file_path
+            image_name = str(get_temp_file_path(os.path.basename(image_name)))
         try:
             captcha_image_element = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.ID, "captcahCanvas"))

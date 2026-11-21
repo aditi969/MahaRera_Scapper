@@ -41,8 +41,9 @@ class ProjectExtractor:
                 raise
             return default
 
-    def extract_project_data(self, driver) -> pd.DataFrame:
+    def extract_project_data(self, driver, organization: Optional[str] = None) -> pd.DataFrame:
         wait = WebDriverWait(driver, 10)
+        soup = BeautifulSoup(driver.page_source, "html.parser")
 
         Project_Status = self.safe_text(driver, "//*[contains(text(), 'Project Status')]/following::div[1]",
                                         field_name="Project Status")
@@ -64,20 +65,41 @@ class ProjectExtractor:
             driver, "//*[contains(text(), 'Proposed Completion Date (Revised)')]/following-sibling::*[1]",
             field_name="Proposed Completion Date (Revised)")
 
-        survey_no = self.safe_text(driver, "//*[contains(text(), 'Survey Number')]/following-sibling::*[1]",
+        survey_no = self.safe_text(driver, "//*[contains(normalize-space(.), 'Survey Number')]/following-sibling::*[1]",
                                    field_name="Survey Number")
-        Total_Land_Area = self.safe_text(driver, "//*[contains(text(), 'Total Land Area of Approved Layout')]/following-sibling::*[1]",
-                                         field_name="Total Land Area")
-        Land_Area_for_Project_Applied_for_this_Registration = self.safe_text(
-            driver, "//*[contains(text(), 'Land Area for Project Applied for this Registration')]/following-sibling::*[1]",
-            field_name="Land Area for Project Applied for this Registration")
-        Aggregate_area_in_sqmt_of_recreational_open_space = self.safe_text(
-            driver, "//*[contains(text(), 'Land Area for Project Applied for this Registration')]/following-sibling::*[1]",
-            field_name="Aggregate area")
-        Permissible_Builtup = self.safe_text(driver, "//*[contains(text(), 'Permissible Built-up Area')]/following-sibling::*[1]",
-                                             field_name="Permissible Built-up Area")
-        Sanctioned_Builtup = self.safe_text(driver, "//*[contains(text(), 'Sanctioned Built-up Area of the Project')]/following-sibling::*[1]",
-                                            field_name="Sanctioned Built-up Area")
+        def _clean_area_val(v: Optional[str]) -> Optional[str]:
+            if not v:
+                return None
+            s = clean_str(v)
+            if not s or s.lower() in ("project status", "none", "nan", "null", ""):
+                return None
+            return s
+
+        def _extract_area(driver, keyword: str, field_name: str) -> Optional[str]:
+            xpaths = [
+                f"//div[(contains(@class,'white-box') or contains(@class,'form-group') or contains(@class,'col-')) and .//label[contains(normalize-space(.), '{keyword}')]]//div[contains(@class,'text-font')]",
+                f"//label[contains(normalize-space(.), '{keyword}')]/following-sibling::div[contains(@class,'text-font')]",
+                f"//label[contains(normalize-space(.), '{keyword}')]/following-sibling::*[1]",
+                f"//span[contains(normalize-space(.), '{keyword}')]/following-sibling::*[1]",
+            ]
+            for xp in xpaths:
+                raw_val = self.safe_text(driver, xp, timeout=1.5, field_name=field_name)
+                c_val = _clean_area_val(raw_val)
+                if c_val:
+                    return c_val
+            return None
+
+        Total_Land_Area = _extract_area(driver, "Total Land Area of Approved Layout", "Total Land Area")
+        Land_Area_for_Project_Applied_for_this_Registration = (
+            _extract_area(driver, "Land Area for Project Applied", "Land Area Applied") or
+            _extract_area(driver, "Land Area", "Land Area")
+        )
+        Aggregate_area_in_sqmt_of_recreational_open_space = (
+            _extract_area(driver, "Aggregate area", "Aggregate area") or
+            _extract_area(driver, "recreational open space", "Recreational open space")
+        )
+        Permissible_Builtup = _extract_area(driver, "Permissible Built-up Area", "Permissible Builtup")
+        Sanctioned_Builtup = _extract_area(driver, "Sanctioned Built-up Area of the Project", "Sanctioned Builtup")
         Longitude = self.safe_text(
             driver, '//*[@id="hidden_div"]/div/div/div/div/form/fieldset/div[4]/div[1]/fieldset/div/fieldset/form/div/div[1]/div/project-geo-tagging-preview/fieldset/form/div/fieldset/div/div[1]/div/div',
             field_name="Longitude")
@@ -105,18 +127,62 @@ class ProjectExtractor:
         Boundaries_South = self.safe_text(driver, "//*[contains(text(), 'Boundaries South')]/following-sibling::*[1]", field_name="Boundaries South")
         Boundaries_North = self.safe_text(driver, "//*[contains(text(), 'Boundaries North')]/following-sibling::*[1]", field_name="Boundaries North")
 
-        try:
-            Promoter_Type = wait.until(
-                EC.visibility_of_element_located((By.XPATH, "//*[contains(text(), 'Promoter Type')]/following-sibling::*[1]"))
-            ).text
-            Name_of_Partnership = wait.until(
-                EC.visibility_of_element_located((By.XPATH, "//*[contains(text(), 'Name of Partnership')]/following-sibling::*[1]"))
-            ).text
-            Promoter_Details = clean_str(f"{Promoter_Type} - {Name_of_Partnership}")
-        except Exception:
-            Promoter_Details = self.safe_text(
-                driver, '//*[@id="hidden_div"]/div/div/div/div/form/fieldset/div[4]/div[1]/fieldset/div/fieldset/form/div/div[2]/div/div/project-general-information-preview/fieldset/form/div[2]/div',
-                field_name="Promoter_Details")
+        # --- Robust Promoter Details Extraction ---
+        Promoter_Type = self.safe_text(
+            driver,
+            "//*[contains(normalize-space(.), 'Promoter Type')]/following-sibling::*[1]",
+            timeout=2.0,
+            field_name="Promoter Type"
+        )
+        if not Promoter_Type:
+            # Sibling or container search
+            for p_lbl in soup.find_all(["label", "span", "div"], class_=lambda c: c and ("label" in str(c).lower() or "title" in str(c).lower())):
+                if "promoter type" in p_lbl.get_text(strip=True).lower():
+                    sib = p_lbl.find_next_sibling(["div", "span", "b", "p"])
+                    if sib and sib.get_text(strip=True):
+                        Promoter_Type = clean_str(sib.get_text(strip=True))
+                        break
+
+        promoter_name_candidates = [
+            "//*[contains(normalize-space(.), 'Name of Partnership')]/following-sibling::*[1]",
+            "//*[contains(normalize-space(.), 'Company Name')]/following-sibling::*[1]",
+            "//*[contains(normalize-space(.), 'Name of Company')]/following-sibling::*[1]",
+            "//*[contains(normalize-space(.), 'Name of Proprietorship')]/following-sibling::*[1]",
+            "//*[contains(normalize-space(.), 'Name of Firm')]/following-sibling::*[1]",
+            "//*[contains(normalize-space(.), 'Name of LLP')]/following-sibling::*[1]",
+            "//*[contains(normalize-space(.), 'Name of Entity')]/following-sibling::*[1]",
+            "//div[contains(@class,'form-group') and .//label[normalize-space(.)='Name']]//div[contains(@class,'text-font')]",
+            "//*[normalize-space(.)='Name']/following-sibling::*[1]",
+        ]
+        Promoter_Name = None
+        for xp in promoter_name_candidates:
+            p_val = self.safe_text(driver, xp, timeout=0.8, field_name="Promoter Name Candidate")
+            if p_val and p_val.lower() not in ("promoter type", "none", "null", ""):
+                Promoter_Name = p_val
+                break
+
+        # Check for Individual promoter components: First Name, Middle Name, Last Name
+        if not Promoter_Name:
+            first_n = self.safe_text(driver, "//*[contains(normalize-space(.), 'First Name')]/following-sibling::*[1]", timeout=0.8, field_name="First Name")
+            last_n = self.safe_text(driver, "//*[contains(normalize-space(.), 'Last Name')]/following-sibling::*[1]", timeout=0.8, field_name="Last Name")
+            middle_n = self.safe_text(driver, "//*[contains(normalize-space(.), 'Middle Name')]/following-sibling::*[1]", timeout=0.8, field_name="Middle Name")
+            parts = [p for p in [first_n, middle_n, last_n] if p]
+            if parts:
+                Promoter_Name = " ".join(parts)
+
+        # Fallback to search-card organization if Promoter_Name is still missing
+        if not Promoter_Name and organization:
+            Promoter_Name = organization
+
+        # Assemble clean, expected output format (e.g. "Partnership - GREEN SPACE INFRA VENTURES")
+        if Promoter_Type and Promoter_Name:
+            Promoter_Details = clean_str(f"{Promoter_Type} - {Promoter_Name}")
+        elif Promoter_Name:
+            Promoter_Details = clean_str(Promoter_Name)
+        elif Promoter_Type:
+            Promoter_Details = clean_str(f"{Promoter_Type} - {organization}") if organization else clean_str(Promoter_Type)
+        else:
+            Promoter_Details = clean_str(organization) if organization else None
 
         Are = self.safe_text(
             driver, '//*[@id="hidden_div"]/div/div/div/div/form/fieldset/div[4]/div[6]/div/div[2]/div[1]/label[2]/b',
@@ -150,6 +216,72 @@ class ProjectExtractor:
                     for h, cell in zip(headers, row.find_all("td")):
                         if h:
                             summary_bhk[h].append(clean_str(cell.get_text(strip=True)))
+
+        if not summary_bhk:
+            for _t in soup.find_all("table"):
+                _hdr = " ".join(th.get_text(" ", strip=True) for th in _t.find_all("th"))
+                if "Apartment Type" in _hdr and "Carpet Area" in _hdr:
+                    rows = _t.find_all("tr")
+                    if rows:
+                        headers = [clean_str(th.get_text(strip=True)) for th in rows[0].find_all("th")]
+                        summary_bhk = {h: [] for h in headers if h}
+                        for row in rows[1:]:
+                            for h, cell in zip(headers, row.find_all("td")):
+                                if h:
+                                    summary_bhk[h].append(clean_str(cell.get_text(strip=True)))
+                    break
+
+        # Fallback to BeautifulSoup for any missing area or general fields
+        if not Land_Area_for_Project_Applied_for_this_Registration or not Aggregate_area_in_sqmt_of_recreational_open_space or not Total_Land_Area:
+            for box in soup.find_all("div", class_=lambda c: c and ("white-box" in c or "form-group" in c)):
+                lbl = box.find("label") or box.find(class_=lambda c: c and "form-label" in c)
+                if not lbl:
+                    continue
+                lt = lbl.get_text(strip=True).lower()
+                val_el = box.find(class_=lambda c: c and "text-font" in c)
+                val = val_el.get_text(strip=True) if val_el else ""
+                if not val:
+                    nd = lbl.find_next_sibling("div")
+                    if nd:
+                        val = nd.get_text(strip=True)
+                if not val:
+                    continue
+                if "land area for project applied" in lt and not Land_Area_for_Project_Applied_for_this_Registration:
+                    Land_Area_for_Project_Applied_for_this_Registration = clean_str(val)
+                elif ("aggregate area" in lt or "recreational open space" in lt) and not Aggregate_area_in_sqmt_of_recreational_open_space:
+                    Aggregate_area_in_sqmt_of_recreational_open_space = clean_str(val)
+                elif "total land area" in lt and not Total_Land_Area:
+                    Total_Land_Area = clean_str(val)
+                elif "permissible built-up" in lt and not Permissible_Builtup:
+                    Permissible_Builtup = clean_str(val)
+                elif "sanctioned built-up" in lt and not Sanctioned_Builtup:
+                    Sanctioned_Builtup = clean_str(val)
+
+        # Fallback for Aggregate Area from Development Work / Amenities table if still missing or blank
+        if not Aggregate_area_in_sqmt_of_recreational_open_space:
+            for tr in soup.find_all("tr"):
+                row_txt = tr.get_text(" ", strip=True).lower()
+                if "aggregate area of recreational" in row_txt:
+                    tds = tr.find_all("td")
+                    if len(tds) >= 4:
+                        is_avail = clean_str(tds[2].get_text(strip=True))
+                        comp_pct = clean_str(tds[3].get_text(strip=True))
+                        if is_avail.lower() == "no":
+                            Aggregate_area_in_sqmt_of_recreational_open_space = "0"
+                        elif comp_pct and comp_pct != "0":
+                            Aggregate_area_in_sqmt_of_recreational_open_space = comp_pct
+
+        # If the recreational open space field is explicitly present in the form but blank/empty, record "0"
+        if not Aggregate_area_in_sqmt_of_recreational_open_space:
+            for box in soup.find_all("div", class_=lambda c: c and ("white-box" in c or "form-group" in c)):
+                lbl = box.find("label") or box.find(class_=lambda c: c and "form-label" in c)
+                if lbl and ("aggregate area" in lbl.get_text(strip=True).lower() or "recreational open space" in lbl.get_text(strip=True).lower()):
+                    Aggregate_area_in_sqmt_of_recreational_open_space = "0"
+                    break
+
+        # Fallback for Land Area if applied is missing but total land area is known
+        if not Land_Area_for_Project_Applied_for_this_Registration and Total_Land_Area:
+            Land_Area_for_Project_Applied_for_this_Registration = Total_Land_Area
 
         bhk_details = {}
         building_details = {}
@@ -268,37 +400,77 @@ class ProjectExtractor:
             pass
 
         all_parking_details = {}
-        if "Parking Details" in driver.page_source:
-            opened = False
+        if "Parking" in driver.page_source:
+            # 1. Attempt to open Parking Details accordion if present
             for _ in range(3):
                 try:
-                    parking_button = driver.find_element(By.XPATH, "//button[.//div[contains(., 'Parking Details')]]")
-                    driver.execute_script("arguments[0].click();", parking_button)
-                    time.sleep(0.4)
-                    opened = True
+                    parking_buttons = driver.find_elements(
+                        By.XPATH,
+                        "//button[contains(., 'Parking Details')] | "
+                        "//a[contains(., 'Parking Details')] | "
+                        "//button[.//div[contains(., 'Parking Details')]] | "
+                        "//*[contains(@class,'accordion') and contains(., 'Parking Details')]//button"
+                    )
+                    for pb in parking_buttons:
+                        if pb.is_displayed():
+                            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", pb)
+                            driver.execute_script("arguments[0].click();", pb)
+                            time.sleep(0.4)
+                            break
                     break
                 except Exception:
                     driver.execute_script("window.scrollBy(0, 150);")
                     time.sleep(0.3)
-            if opened:
-                tables = driver.find_elements(
-                    By.XPATH, "//button[.//div[contains(., 'Parking Details')]]/parent::h2/following-sibling::fieldset//table"
-                )
-                for table in tables:
-                    try:
-                        parent_div = table.find_element(By.XPATH, "./parent::div")
-                        grandparent_div = parent_div.find_element(By.XPATH, "./parent::div")
-                        building_name_div = grandparent_div.find_element(By.XPATH, "./preceding-sibling::div[1]")
-                        building_name = clean_str(building_name_div.text)
-                        keys = [clean_str(th.text) for th in table.find_elements(By.TAG_NAME, "th")]
-                        parking_details = {k: [] for k in keys if k}
-                        for tr in table.find_element(By.TAG_NAME, "tbody").find_elements(By.TAG_NAME, "tr")[:-1]:
-                            for idx, td in enumerate(tr.find_elements(By.TAG_NAME, "td")):
-                                if idx < len(keys) and keys[idx]:
-                                    parking_details[keys[idx]].append(clean_str(td.text))
+
+            # 2. Extract parking tables via BeautifulSoup for maximum reliability (works even if DOM is nested or partially off-screen)
+            soup = BeautifulSoup(driver.page_source, "html.parser")
+            parking_tables = []
+            for t in soup.find_all("table"):
+                t_text = t.get_text(" ", strip=True).lower()
+                if "parking type" in t_text or "total no of parking" in t_text or "open space" in t_text:
+                    parking_tables.append(t)
+
+            for p_idx, table in enumerate(parking_tables):
+                try:
+                    # Detect building name associated with this parking table
+                    building_name = None
+                    prev = table.find_previous(["h2", "h3", "h4", "h5", "div", "b", "strong"])
+                    if prev:
+                        prev_txt = clean_str(prev.get_text(strip=True))
+                        if prev_txt and not prev_txt.lower().startswith("parking"):
+                            building_name = prev_txt
+
+                    if not building_name:
+                        building_name = f"Building Name : Parking Details {p_idx + 1}" if len(parking_tables) > 1 else "Building Name : All Parking"
+
+                    rows = table.find_all("tr")
+                    if not rows:
+                        continue
+
+                    # Header row
+                    th_cells = rows[0].find_all(["th", "td"])
+                    keys = [clean_str(th.get_text(strip=True)) for th in th_cells]
+                    keys = [k for k in keys if k]
+                    if not keys:
+                        continue
+
+                    parking_details = {k: [] for k in keys}
+                    for tr in rows[1:]:
+                        tds = tr.find_all("td")
+                        if not tds:
+                            continue
+                        row_vals = [clean_str(td.get_text(strip=True)) for td in tds]
+                        # Don't skip row unless it is genuinely a "Total" summary footer row
+                        if row_vals and (row_vals[0] or "").lower() == "total" and len(rows) > 2:
+                            continue
+                        for k_idx, val in enumerate(row_vals):
+                            if k_idx < len(keys):
+                                parking_details[keys[k_idx]].append(val or "0")
+
+                    if any(len(v) > 0 for v in parking_details.values()):
                         all_parking_details[building_name] = parking_details
-                    except Exception:
-                        pass
+                except Exception as p_err:
+                    self.logger.debug(f"Parking table extraction warning: {p_err}")
 
         project_details = {
             "Registration Number": [Registration_Number],

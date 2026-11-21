@@ -8,8 +8,15 @@ import L from "leaflet";
 import { MapProject } from "../../types";
 
 const createStatusIcon = (status: string | null | undefined) => {
-  const isCompleted = status?.toLowerCase().includes("completed");
-  const color = isCompleted ? "#16A34A" : "#2563EB";
+  const s = (status || "").toLowerCase();
+  let color = "#2563EB"; // Blue (Active / Ongoing)
+  if (s.includes("completed")) {
+    color = "#16A34A"; // Green (Completed)
+  } else if (s.includes("lapsed")) {
+    color = "#D97706"; // Amber (Lapsed)
+  } else if (s.includes("de-registered") || s.includes("revoked")) {
+    color = "#DC2626"; // Red (De-registered)
+  }
 
   const svgIcon = `
     <svg width="24" height="32" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg">

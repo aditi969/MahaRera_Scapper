@@ -3,8 +3,10 @@
 Matches exact workflow, ThreadPoolExecutor, and failure policies
 from Cells 6 and 7 of RERA_Scrapping_fixed_v3.ipynb.
 """
+import json
 import os
 import random
+import re
 import threading
 import time
 import traceback
@@ -18,11 +20,13 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from scraper.core.browser import BrowserManager
+from scraper.core.building_analyzer import generate_analyzed_building_wise_details
 from scraper.core.captcha import CaptchaSolver
 from scraper.core.certificate import CertificateExtractor
 from scraper.core.checkpoint import CheckpointManager
 from scraper.core.config import ScraperConfig
 from scraper.core.csv_writer import CsvWriter
+from scraper.core.date_utils import compare_last_modified, normalize_date_display, format_date_display
 from scraper.core.extractor import ProjectExtractor
 from scraper.core.logger import ScraperLogger
 from scraper.core.navigation import NavigationManager
@@ -35,11 +39,13 @@ class ScraperWorker:
         logger: Optional[ScraperLogger] = None,
         on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
         on_record_scraped: Optional[Callable[[Dict[str, Any]], None]] = None,
+        existing_projects_map: Optional[Dict[str, Dict[str, Any]]] = None,
     ):
         self.config = config or ScraperConfig()
         self.logger = logger or ScraperLogger(log_file=self.config.run_log_file)
         self.on_progress = on_progress
         self.on_record_scraped = on_record_scraped
+        self.existing_projects_map = existing_projects_map
 
         self.browser_manager = BrowserManager(self.config, self.logger)
         self.checkpoint_manager = CheckpointManager(self.config, self.logger)
@@ -48,6 +54,8 @@ class ScraperWorker:
         self.cert_extractor = CertificateExtractor(self.config, self.logger)
         self.project_extractor = ProjectExtractor(self.config, self.logger, self.cert_extractor)
         self.csv_writer = CsvWriter(self.config, self.logger)
+        self.end_of_results_reached: bool = False
+        self.page_all_skipped: bool = False
 
     def _notify_progress(self, event_type: str, data: Dict[str, Any]):
         if self.on_progress:
@@ -68,15 +76,19 @@ class ScraperWorker:
         project_url = task_info["project_url"]
         organization = task_info["organization"]
         last_modified = task_info["last_modified"]
+        is_update = task_info.get("is_update", False)
+        target_rera_id = task_info.get("rera_id")
+        target_name = task_info.get("project_name")
 
         if cancel_event and cancel_event.is_set():
             return False, None
 
-        if self.checkpoint_manager.is_project_already_scraped(checkpoint_data, project_url):
-            self.logger.info(f"⏩ Project {idx + 1} on page {page_number} ({project_url}) already scraped — skipping.")
+        if not is_update and self.checkpoint_manager.is_project_already_scraped(checkpoint_data, project_url, target_rera_id):
+            self.logger.info(f"⏩ Project {idx + 1} on page {page_number} ({target_rera_id or project_url}) already scraped — skipping.")
             return True, None
 
-        self.logger.info(f"🚀 Opening project {idx + 1} on page {page_number}: {project_url}")
+        action_desc = "Re-scraping updated" if is_update else "Opening new"
+        self.logger.info(f"🚀 {action_desc} project {idx + 1} on page {page_number}: {target_rera_id or project_url}")
 
         for attempt in range(1, self.config.max_project_retries + 1):
             if cancel_event and cancel_event.is_set():
@@ -97,19 +109,22 @@ class ScraperWorker:
                 except TimeoutException:
                     pass
 
-                captcha_img_file = f"captcha_p{page_number}_i{idx}_t{threading.get_ident()}.png"
-                captcha_ok = self.captcha_solver.solve_captcha_fully_automated(driver, captcha_img_file)
-
-                if os.path.exists(captcha_img_file):
-                    try:
-                        os.remove(captcha_img_file)
-                    except Exception:
-                        pass
+                from scraper.core.storage import get_temp_file_path
+                captcha_img_file = str(get_temp_file_path(f"captcha_p{page_number}_i{idx}_t{threading.get_ident()}.png"))
+                captcha_ok = False
+                try:
+                    captcha_ok = self.captcha_solver.solve_captcha_fully_automated(driver, captcha_img_file)
+                finally:
+                    if os.path.exists(captcha_img_file):
+                        try:
+                            os.remove(captcha_img_file)
+                        except Exception:
+                            pass
 
                 if not captcha_ok:
                     raise Exception("Captcha solve failed after retries")
 
-                df = self.project_extractor.extract_project_data(driver)
+                df = self.project_extractor.extract_project_data(driver, organization=organization)
                 df["Organization"] = organization
                 df["Last_Modified"] = last_modified
                 df["source_url"] = project_url
@@ -122,19 +137,29 @@ class ScraperWorker:
                 if "Registration Number" in df.columns and len(df["Registration Number"]) > 0:
                     rera_id = df["Registration Number"].iloc[0]
 
-                if rera_id and str(rera_id).strip() in self.checkpoint_manager.load_existing_csv_rera_ids():
-                    self.logger.info(f"RERA ID {rera_id} already in {self.config.output_csv} -- marking completed.")
-                    self.checkpoint_manager.mark_project_completed(checkpoint_data, project_url, rera_id=rera_id)
-                    return True, None
+                if not rera_id and target_rera_id:
+                    rera_id = target_rera_id
+                    df["Registration Number"] = target_rera_id
 
                 with self.checkpoint_manager.csv_lock:
-                    saved_df = self.csv_writer.save_scraped_project_row(df, self.config.output_csv, limit=self.config.excel_char_limit)
+                    saved_df = self.csv_writer.save_scraped_project_row(
+                        df, self.config.output_csv, limit=self.config.excel_char_limit, is_update=is_update
+                    )
 
-                self.checkpoint_manager.add_scraped_id_to_cache(rera_id)
+                if rera_id:
+                    self.checkpoint_manager.update_existing_project(
+                        rera_id,
+                        last_modified=last_modified,
+                        project_name=df["Project Name"].iloc[0] if "Project Name" in df.columns else (target_name or ""),
+                    )
+
+                self.checkpoint_manager.record_scrape_success(rera_id, is_update=is_update)
                 self.checkpoint_manager.mark_project_completed(checkpoint_data, project_url, rera_id=rera_id)
-                self.logger.info(f"Project {idx + 1} on page {page_number} scraped successfully! (RERA ID: {rera_id})")
 
-                # Ingestion callback
+                status_label = "updated" if is_update else "scraped"
+                self.logger.info(f"✅ Project {idx + 1} on page {page_number} {status_label} successfully! (RERA ID: {rera_id})")
+
+                # Ingestion callback (updates/inserts in DB)
                 if self.on_record_scraped and not df.empty:
                     try:
                         row_dict = df.iloc[0].to_dict()
@@ -146,7 +171,9 @@ class ScraperWorker:
                     "page": page_number,
                     "project_index": idx,
                     "rera_id": rera_id,
-                    "project_name": df["Project Name"].iloc[0] if "Project Name" in df.columns else ""
+                    "project_name": df["Project Name"].iloc[0] if "Project Name" in df.columns else (target_name or ""),
+                    "is_update": is_update,
+                    "website_last_modified": last_modified,
                 })
 
                 return True, saved_df
@@ -167,6 +194,14 @@ class ScraperWorker:
 
         self.logger.error(f"Project {idx + 1} on page {page_number} failed permanently after {self.config.max_project_retries} attempts.")
         self.checkpoint_manager.log_failed_project(page_number, idx, project_url, f"Failed after {self.config.max_project_retries} retries")
+        self.checkpoint_manager.record_project_status(
+            rera_id=target_rera_id or f"UNKNOWN-P{page_number}-I{idx}",
+            project_name=target_name or "Unknown Project",
+            status="FAILED",
+            website_last_modified=last_modified,
+            action="Failed",
+            details=f"Failed after {self.config.max_project_retries} retries",
+        )
         self._notify_progress("project_failed", {
             "page": page_number,
             "project_index": idx,
@@ -188,6 +223,14 @@ class ScraperWorker:
 
         for attempt in range(1, max_retries + 1):
             if not self.navigation_manager.go_to_results_page(driver, page_number, refresh_on_fail=True):
+                if self.navigation_manager.is_last_page_reached:
+                    self.end_of_results_reached = True
+                    self.logger.info(f"🏁 Page {page_number} is past the last page of results. Concluding scrape cleanly.")
+                    return []
+                if self.navigation_manager.check_and_dismiss_no_records_popup(driver):
+                    self.end_of_results_reached = True
+                    self.logger.info(f"🏁 Page {page_number} returned 'No Records Found'. Reached end of available search results.")
+                    return []
                 self.logger.warning(f"Could not load search result page {page_number} (attempt {attempt}/{max_retries})")
                 if attempt < max_retries:
                     time.sleep(self.config.retry_backoff_seconds)
@@ -199,8 +242,12 @@ class ScraperWorker:
                 )
             except TimeoutException:
                 if self.navigation_manager.check_and_dismiss_no_records_popup(driver):
-                    self.logger.info(f"🔄 'No Records Found' popup appeared on page {page_number}. Refreshing...")
-                    self.browser_manager.reset_driver_page_state(driver)
+                    self.end_of_results_reached = True
+                    if page_number > 1:
+                        self.logger.info(f"🏁 Page {page_number} returned 'No Records Found'. Reached end of available search results.")
+                    else:
+                        self.logger.info(f"ℹ️ Search filters returned 0 matching records on MahaRERA.")
+                    return []
                 else:
                     self.logger.warning(f"Project sections did not appear on page {page_number} within timeout.")
                     self.browser_manager.reset_driver_page_state(driver)
@@ -223,29 +270,176 @@ class ScraperWorker:
             for idx in range(project_count):
                 section = sections[idx]
                 try:
+                    card_text = section.text
+
+                    # 1. Extract RERA ID from card (# P519... or P5...)
+                    id_match = re.search(r'#?\s*(P\d{11,})', card_text)
+                    card_rera_id = id_match.group(1).strip() if id_match else None
+                    if not card_rera_id:
+                        try:
+                            id_el = section.find_element(By.XPATH, ".//*[contains(text(), 'P5') or contains(text(), '#')]")
+                            m = re.search(r'(P\d{11,})', id_el.text)
+                            card_rera_id = m.group(1).strip() if m else None
+                        except Exception:
+                            card_rera_id = None
+
+                    # 2. Extract Project Name from card
+                    card_project_name = None
+                    try:
+                        name_el = section.find_element(
+                            By.XPATH,
+                            ".//h4 | .//h5 | .//strong | .//b | .//div[contains(@class,'projectName')] | "
+                            ".//p[contains(@class,'bold') and not(contains(@class,'darkBlue'))]"
+                        )
+                        card_project_name = name_el.text.strip()
+                    except Exception:
+                        pass
+
+                    # 3. Extract Organization / Promoter
                     try:
                         organization = section.find_element(By.XPATH, ".//p[@class='darkBlue bold ']").text.strip()
                     except Exception:
                         organization = None
+
+                    # 4. Extract Last Modified date
+                    last_modified = None
                     try:
                         last_modified = section.find_element(
-                            By.XPATH, ".//div[@class='greyColor' and text()='Last Modified']/following-sibling::p"
+                            By.XPATH,
+                            ".//div[@class='greyColor' and contains(text(),'Last Modified')]/following-sibling::p | "
+                            ".//*[contains(text(),'Last Modified')]/following-sibling::*"
                         ).text.strip()
                     except Exception:
-                        last_modified = None
+                        m_date = re.search(r'Last\s*Modified\s*[:\n\r\s]+([0-9]{2,4}[-/][0-9]{1,2}[-/][0-9]{2,4})', card_text, re.IGNORECASE)
+                        last_modified = m_date.group(1).strip() if m_date else None
 
+                    # 5. Extract View Details Link
                     view_details_link = section.find_element(By.LINK_TEXT, "View Details")
                     href_value = view_details_link.get_attribute("href")
+
+                    if not card_rera_id and href_value:
+                        m_href = re.search(r'project-detail/([A-Za-z0-9]+)', href_value)
+                        if m_href:
+                            card_rera_id = m_href.group(1).strip()
+
+                    # SMART LAST MODIFIED DATE CHECK
+                    existing_info = self.checkpoint_manager.get_existing_project(card_rera_id)
+                    is_existing = existing_info is not None
+                    existing_last_mod = existing_info.get("last_modified") if existing_info else None
+                    if not card_project_name and existing_info:
+                        card_project_name = existing_info.get("project_name")
+
+                    decision = "NEW"
+                    reason = "New project"
+                    is_update = False
+
+                    if is_existing and self.config.smart_date_check:
+                        decision, reason = compare_last_modified(existing_last_mod, last_modified)
+
+                    # Format dates for standard display in logs (e.g. DD-MM-YYYY)
+                    existing_disp = format_date_display(existing_last_mod) if is_existing else "Not Found"
+                    website_disp = format_date_display(last_modified)
+
+                    if decision == "UNCHANGED_SKIPPED":
+                        result_text = "Date matches. Skipping project."
+                    elif decision == "UPDATED_RESCRAPED":
+                        if not existing_last_mod or not last_modified:
+                            result_text = "Missing or invalid Last Modified Date. Re-scraping project."
+                        else:
+                            result_text = "Last Modified Date changed. Re-scraping project."
+                    else:
+                        result_text = "New project. Proceeding to scrape."
+
+                    # Display standardized logs as strictly required by specification
+                    self.logger.info(f"[SMART CHECK] RERA ID: {card_rera_id or 'UNKNOWN'}")
+                    self.logger.info(f"[EXISTING DATE] {existing_disp}")
+                    self.logger.info(f"[WEBSITE DATE] {website_disp}")
+                    self.logger.info(f"[RESULT] {result_text}")
+
+                    if decision == "UNCHANGED_SKIPPED":
+                        # Case 1: Existing Project & Date Matches -> SKIP!
+                        self.checkpoint_manager.record_project_status(
+                            rera_id=card_rera_id or f"UNKNOWN-P{page_number}-I{idx}",
+                            project_name=card_project_name or "Unknown Project",
+                            status="UNCHANGED_SKIPPED",
+                            website_last_modified=last_modified,
+                            existing_last_modified=existing_last_mod,
+                            action="Skip",
+                            details=reason,
+                        )
+                        self._notify_progress("project_skipped", {
+                            "page": page_number,
+                            "project_index": idx,
+                            "rera_id": card_rera_id,
+                            "project_name": card_project_name,
+                            "website_last_modified": last_modified,
+                            "existing_last_modified": existing_last_mod,
+                            "status": "UNCHANGED_SKIPPED",
+                            "reason": reason,
+                        })
+                        continue  # Completely skipped: do not download PDFs or extract details!
+
+                    elif decision == "UPDATED_RESCRAPED":
+                        # Case 2: Existing Project & Date Changed / Missing -> RE-SCRAPE & UPDATE!
+                        is_update = True
+                        self.checkpoint_manager.record_project_status(
+                            rera_id=card_rera_id or f"UNKNOWN-P{page_number}-I{idx}",
+                            project_name=card_project_name or "Unknown Project",
+                            status="UPDATED_RESCRAPED",
+                            website_last_modified=last_modified,
+                            existing_last_modified=existing_last_mod,
+                            action="Re-scrape and Update",
+                            details=reason,
+                        )
+                        self._notify_progress("project_update_detected", {
+                            "page": page_number,
+                            "project_index": idx,
+                            "rera_id": card_rera_id,
+                            "project_name": card_project_name,
+                            "website_last_modified": last_modified,
+                            "existing_last_modified": existing_last_mod,
+                            "status": "UPDATED_RESCRAPED",
+                            "reason": reason,
+                        })
+
+                    else:
+                        # Case 3: New Project (RERA ID Not Found in reference data) -> SCRAPE!
+                        self.checkpoint_manager.record_project_status(
+                            rera_id=card_rera_id or f"UNKNOWN-P{page_number}-I{idx}",
+                            project_name=card_project_name or "Unknown Project",
+                            status="NEW",
+                            website_last_modified=last_modified,
+                            existing_last_modified="Not Available",
+                            action="Scrape",
+                            details="New project found",
+                        )
+                        self._notify_progress("project_new_detected", {
+                            "page": page_number,
+                            "project_index": idx,
+                            "rera_id": card_rera_id,
+                            "project_name": card_project_name,
+                            "website_last_modified": last_modified,
+                            "status": "NEW",
+                        })
 
                     tasks.append({
                         "page_number": page_number,
                         "project_index": idx,
                         "project_url": href_value,
                         "organization": organization,
-                        "last_modified": last_modified
+                        "last_modified": last_modified,
+                        "rera_id": card_rera_id,
+                        "project_name": card_project_name,
+                        "is_update": is_update,
                     })
                 except Exception as e:
                     self.logger.warning(f"Error preparing task for project {idx + 1} on page {page_number}: {e}")
+
+            if sections:
+                if not tasks:
+                    self.page_all_skipped = True
+                    self.logger.info(f"⏩ Page {page_number}: all {len(sections)} projects are up-to-date in database (skipped from re-scraping).")
+                return tasks
 
             if tasks:
                 return tasks
@@ -265,32 +459,56 @@ class ScraperWorker:
             page_end = self.config.end_page
 
         checkpoint_data = self.checkpoint_manager.load_checkpoint()
-        checkpoint_data["job_start_page"] = min(checkpoint_data.get("job_start_page", page_start), page_start)
+        checkpoint_data["job_start_page"] = page_start
         self.checkpoint_manager.save_checkpoint_data(checkpoint_data)
-        start_page = checkpoint_data["job_start_page"]
+        start_page = page_start
 
-        if start_page != page_start:
-            self.logger.info(f"Resuming from Page {start_page} (checkpoint floor) in sequence.")
+        # Pre-index existing projects for smart Last Modified Date checks (CSV priority)
+        self.checkpoint_manager.load_existing_project_index(db_projects_map=self.existing_projects_map)
 
         master_driver = self.browser_manager.create_driver(self.config.headless)
         combined_df = pd.DataFrame()
         consecutive_page_failures = 0
 
+        is_scrape_all = bool(self.config.scrape_all_pages or (page_end is None) or (page_end <= 0))
+        effective_end_page = page_end if not is_scrape_all else None
+        page_scope_desc = "All Available Pages (Auto-detect)" if is_scrape_all else f"Pages {start_page} to {effective_end_page}"
+
+        self.logger.info(f"🚀 Launching scrape job in [{page_scope_desc}] mode for {self.config.district_name or 'All / Custom filters'}.")
+
         self._notify_progress("job_started", {
             "start_page": start_page,
-            "end_page": page_end,
+            "end_page": effective_end_page,
+            "scrape_all_pages": is_scrape_all,
             "district": self.config.district_name
         })
 
+        current_page = start_page
+        detected_total_pages = None
+        max_safety_pages = 2500
+
         try:
-            for page in range(start_page, page_end + 1):
+            while True:
+                if effective_end_page and current_page > effective_end_page:
+                    self.logger.info(f"🏁 Reached end page {effective_end_page}. Scraping finished.")
+                    break
+
+                if current_page > max_safety_pages:
+                    self.logger.warning(f"Reached safety limit of {max_safety_pages} pages. Stopping run.")
+                    break
+
                 if cancel_event and cancel_event.is_set():
                     self.logger.info("🛑 Scrape job cancellation detected.")
                     break
 
+                page = current_page
                 completed_pages = checkpoint_data.get("completed_pages", [])
                 if page in completed_pages:
                     self.logger.info(f"⏩ Page {page} already completed — skipping.")
+                    if effective_end_page and page >= effective_end_page:
+                        self.logger.info(f"🏁 Reached requested end page {effective_end_page}. Scraping finished.")
+                        break
+                    current_page += 1
                     continue
 
                 if not self.browser_manager.driver_is_alive(master_driver):
@@ -303,11 +521,42 @@ class ScraperWorker:
                     self.browser_manager.reset_driver_page_state(master_driver)
                     consecutive_page_failures = 0
 
-                self.logger.info(f"➡️ Processing Page {page}/{page_end}...")
-                self._notify_progress("page_started", {"page": page})
+                page_display_total = effective_end_page or (detected_total_pages if detected_total_pages else "?")
+                self.logger.info(f"➡️ Starting scraping from page {page} (scope: page {page}/{page_display_total})...")
+                self._notify_progress("page_started", {"page": page, "total_pages": effective_end_page or detected_total_pages})
 
                 tasks = self.fetch_page_project_tasks(master_driver, page, checkpoint_data)
+                if tasks:
+                    self.logger.info(f"✅ Successfully loaded Page {page}. Found {len(tasks)} projects on page {page}.")
+
+                # Auto-detect total pagination info after loading first page
+                if page == start_page and detected_total_pages is None:
+                    tot_rec, tot_pg = self.navigation_manager.detect_pagination_info(master_driver)
+                    if tot_pg:
+                        detected_total_pages = tot_pg
+                        if is_scrape_all:
+                            effective_end_page = tot_pg
+                            self.logger.info(f"📊 Auto-detected total pages: {tot_pg} ({tot_rec} projects). Scraping pages {start_page} to {tot_pg}.")
+                        elif effective_end_page and effective_end_page > tot_pg:
+                            self.logger.info(f"ℹ️ Requested end page {effective_end_page} exceeds available pages ({tot_pg}). Adjusting end page to {tot_pg}.")
+                            effective_end_page = tot_pg
+
                 if not tasks:
+                    if getattr(self, "page_all_skipped", False):
+                        self.logger.info(f"✅ Page {page} complete: all projects are already up-to-date in database.")
+                        self.checkpoint_manager.mark_page_completed(checkpoint_data, page)
+                        consecutive_page_failures = 0
+                        self.page_all_skipped = False
+                        if effective_end_page and page >= effective_end_page:
+                            self.logger.info(f"🏁 Reached end page {effective_end_page}. Scraping successfully completed.")
+                            break
+                        current_page += 1
+                        continue
+
+                    if self.end_of_results_reached or self.navigation_manager.is_last_page_reached:
+                        self.logger.info(f"🏁 End of available results reached at page {page}. Scraping successfully completed.")
+                        break
+
                     consecutive_page_failures += 1
                     self.checkpoint_manager.log_failed_page(page, "Failed to load/parse search results page")
 
@@ -324,13 +573,20 @@ class ScraperWorker:
                     if not self.config.skip_failed_pages:
                         self.logger.info("Stopping run as skip_failed_pages is False.")
                         break
+
+                    if effective_end_page and page >= effective_end_page:
+                        self.logger.info(f"🏁 Reached requested end page {effective_end_page}. Scraping finished.")
+                        break
+                    current_page += 1
                     continue
 
                 consecutive_page_failures = 0
 
                 active_tasks = [
                     t for t in tasks
-                    if not self.checkpoint_manager.is_project_already_scraped(checkpoint_data, t["project_url"])
+                    if t.get("is_update") or not self.checkpoint_manager.is_project_already_scraped(
+                        checkpoint_data, t["project_url"], t.get("rera_id") or t.get("target_rera_id")
+                    )
                 ]
                 skipped_count = len(tasks) - len(active_tasks)
                 if skipped_count:
@@ -340,6 +596,10 @@ class ScraperWorker:
                     self.logger.info(f"✅ All projects on page {page} already processed.")
                     self.checkpoint_manager.mark_page_completed(checkpoint_data, page)
                     self._notify_progress("page_completed", {"page": page})
+                    if effective_end_page and page >= effective_end_page:
+                        self.logger.info(f"🏁 Reached requested end page {effective_end_page}. Scraping finished.")
+                        break
+                    current_page += 1
                     continue
 
                 self.logger.info(f"⚡ Launching ThreadPoolExecutor with {self.config.max_workers} workers for {len(active_tasks)} project tasks on page {page}...")
@@ -368,15 +628,43 @@ class ScraperWorker:
                     t for t in tasks
                     if not self.checkpoint_manager.is_project_already_scraped(checkpoint_data, t["project_url"])
                 ]
+
+                # Automatic Refresh & Retry Pass for failed projects on this page
+                if still_missing and not (cancel_event and cancel_event.is_set()):
+                    self.logger.info(f"🔄 Immediate auto-retry pass: attempting to scrape {len(still_missing)} remaining project(s) on page {page} with refreshed browser session...")
+                    self.browser_manager.close_thread_driver()
+                    time.sleep(2)
+                    for miss_task in still_missing:
+                        if cancel_event and cancel_event.is_set():
+                            break
+                        try:
+                            ok, m_df = self.scrape_single_project_task(miss_task, checkpoint_data, cancel_event)
+                            if ok and m_df is not None:
+                                page_results.append(m_df)
+                                combined_df = pd.concat([combined_df, m_df], ignore_index=True)
+                        except Exception as m_err:
+                            self.logger.warning(f"Retry failed for project {miss_task.get('rera_id')}: {m_err}")
+
+                    still_missing = [
+                        t for t in tasks
+                        if not self.checkpoint_manager.is_project_already_scraped(checkpoint_data, t["project_url"])
+                    ]
+
                 if not still_missing:
                     self.checkpoint_manager.mark_page_completed(checkpoint_data, page)
-                    self.logger.info(f"🏁 Completed processing page {page}.")
+                    self.logger.info(f"✅ Extracted {len(tasks)} project entries from page {page}. Page {page} completed successfully.")
                     self._notify_progress("page_completed", {"page": page})
                 else:
                     self.logger.warning(f"Page {page} has {len(still_missing)} project(s) still unscraped.")
                     if not self.config.skip_failed_projects:
                         self.logger.info("Stopping run as skip_failed_projects is False.")
                         break
+
+                if effective_end_page and page >= effective_end_page:
+                    self.logger.info(f"🏁 Reached requested end page {effective_end_page}. Page range completed successfully.")
+                    break
+
+                current_page += 1
 
         except (KeyboardInterrupt, SystemExit):
             self.logger.info("🛑 Manual Interrupt received! Progress recorded in checkpoint.")
@@ -391,11 +679,28 @@ class ScraperWorker:
                 pass
             self.browser_manager.close_thread_driver()
 
-        if self.config.auto_export_excel and not combined_df.empty:
+        if self.config.auto_export_excel:
             self.csv_writer.export_and_verify_dataset(
                 self.config.output_csv, self.config.output_xlsx, limit=self.config.excel_char_limit
             )
 
-        self._notify_progress("job_finished", {"total_scraped": len(combined_df)})
+        summary = self.checkpoint_manager.get_summary_stats()
+        self.logger.info("=" * 60)
+        self.logger.info("  RERA INSIGHT - SCRAPING JOB EXECUTION SUMMARY")
+        self.logger.info("=" * 60)
+        self.logger.info(f"  Total Projects Discovered:       {summary['total_discovered']}")
+        self.logger.info(f"  New Projects Found:              {summary['new_projects_found']}")
+        self.logger.info(f"  Existing Projects Checked:       {summary['existing_checked']}")
+        self.logger.info(f"  Unchanged Projects Skipped:      {summary['unchanged_skipped']}")
+        self.logger.info(f"  Updated Projects Re-scraped:     {summary['updated_rescraped']}")
+        self.logger.info(f"  Successfully Scraped Projects:   {summary['successfully_scraped']}")
+        self.logger.info(f"  Failed Projects:                 {summary['failed_projects']}")
+        self.logger.info(f"  Total Projects Saved or Updated: {summary['total_saved_or_updated']}")
+        self.logger.info("=" * 60)
+
+        self._notify_progress("job_finished", {
+            "total_scraped": len(combined_df),
+            "summary": summary
+        })
         return combined_df
 

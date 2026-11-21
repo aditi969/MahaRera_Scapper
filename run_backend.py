@@ -15,7 +15,21 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(BACKEND_DIR))
 
 if __name__ == "__main__":
+    import socket
+    import subprocess
+    import time
     import uvicorn
+
+    # Ensure port 8000 is free before starting
+    for _ in range(5):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(("127.0.0.1", 8000)) == 0:
+                cmd = 'for /f "tokens=5" %a in (\'netstat -aon ^| findstr :8000 ^| findstr LISTENING\') do taskkill /F /T /PID %a'
+                subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                time.sleep(1)
+            else:
+                break
+
     print("=" * 60)
     print("  RERA INSIGHT - Starting FastAPI Backend Server")
     print(f"  Project Root: {PROJECT_ROOT}")

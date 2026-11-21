@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUpDown, RotateCcw, Building2 } from "lucide-react";
+import { ArrowUpDown, RotateCcw, Building2, Download, FileSpreadsheet } from "lucide-react";
 
 import { PageHeader } from "../../components/layout/PageHeader";
 import { SearchInput } from "../../components/ui/SearchInput";
@@ -13,22 +13,8 @@ import { Badge } from "../../components/ui/Badge";
 import { TableSkeleton } from "../../components/ui/LoadingSkeleton";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
-import { fetchProjects } from "../../lib/api";
+import { fetchProjects, fetchDistricts, fetchStatusStats } from "../../lib/api";
 import { ProjectListItem, ProjectListResponse } from "../../types";
-
-const DISTRICT_OPTIONS = [
-  { label: "Raigarh", value: "Raigarh" },
-  { label: "Mumbai City", value: "Mumbai City" },
-  { label: "Mumbai Suburban", value: "Mumbai Suburban" },
-  { label: "Thane", value: "Thane" },
-  { label: "Pune", value: "Pune" },
-];
-
-const STATUS_OPTIONS = [
-  { label: "Active", value: "Active" },
-  { label: "Completed", value: "Completed" },
-  { label: "Other", value: "Other" },
-];
 
 export default function ProjectExplorerPage() {
   const router = useRouter();
@@ -37,6 +23,8 @@ export default function ProjectExplorerPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [projectsData, setProjectsData] = useState<ProjectListResponse | null>(null);
+  const [districtOptions, setDistrictOptions] = useState<{ label: string; value: string }[]>([]);
+  const [statusOptions, setStatusOptions] = useState<{ label: string; value: string }[]>([]);
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -45,6 +33,20 @@ export default function ProjectExplorerPage() {
   const [status, setStatus] = useState("");
   const [sortBy, setSortBy] = useState("date_of_registration");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  // Load dynamic filter options directly from PostgreSQL
+  useEffect(() => {
+    fetchDistricts()
+      .then((data) => {
+        setDistrictOptions(data.map((d) => ({ label: `${d.district} (${d.count})`, value: d.district })));
+      })
+      .catch(() => {});
+    fetchStatusStats()
+      .then((data) => {
+        setStatusOptions(data.map((s) => ({ label: `${s.status} (${s.count})`, value: s.status })));
+      })
+      .catch(() => {});
+  }, []);
 
   const loadProjects = async () => {
     setLoading(true);
@@ -113,9 +115,9 @@ export default function ProjectExplorerPage() {
               setDistrict(val);
               setPage(1);
             }}
-            options={DISTRICT_OPTIONS}
+            options={districtOptions}
             placeholder="All Districts"
-            className="w-full sm:w-44"
+            className="w-full sm:w-48"
           />
           <FilterSelect
             value={status}
@@ -123,20 +125,48 @@ export default function ProjectExplorerPage() {
               setStatus(val);
               setPage(1);
             }}
-            options={STATUS_OPTIONS}
+            options={statusOptions}
             placeholder="All Statuses"
-            className="w-full sm:w-36"
+            className="w-full sm:w-40"
           />
         </div>
 
-        {(search || district || status) && (
-          <button
-            onClick={clearFilters}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+        <div className="flex items-center gap-2">
+          {/* CSV & Excel Exports directly from PostgreSQL */}
+          <a
+            href={`http://127.0.0.1:8000/api/projects/export/csv?${new URLSearchParams({
+              ...(district ? { district } : {}),
+              ...(status ? { status } : {}),
+              ...(search ? { search } : {}),
+            }).toString()}`}
+            download
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition"
+            title="Export filtered records from PostgreSQL to designated storage/csv/exports/"
           >
-            <RotateCcw size={13} /> Reset
-          </button>
-        )}
+            <Download size={13} /> Export CSV
+          </a>
+          <a
+            href={`http://127.0.0.1:8000/api/projects/export/excel?${new URLSearchParams({
+              ...(district ? { district } : {}),
+              ...(status ? { status } : {}),
+              ...(search ? { search } : {}),
+            }).toString()}`}
+            download
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition"
+            title="Export filtered records from PostgreSQL to designated storage/excel/exports/"
+          >
+            <FileSpreadsheet size={13} /> Export Excel
+          </a>
+
+          {(search || district || status) && (
+            <button
+              onClick={clearFilters}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+            >
+              <RotateCcw size={13} /> Reset
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main Table Card */}

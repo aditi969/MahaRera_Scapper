@@ -55,6 +55,8 @@ class Project(Base):
 
     # Area details
     total_land_area: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    aggregate_area: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    land_area_applied: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     permissible_builtup_area: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     sanctioned_builtup_area: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
 
@@ -91,37 +93,6 @@ class Project(Base):
     commencing_from: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     leftmost_date: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     ending_with: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    cert_date_source: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    source_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-
-    # Scrape linkage
-    scrape_job_id: Mapped[Optional[str]] = mapped_column(
-        String(36), ForeignKey("scrape_jobs.job_id", ondelete="SET NULL"),
-        nullable=True, index=True
-    )
-
-    # Data quality
-    is_duplicate: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    validation_status: Mapped[Optional[str]] = mapped_column(
-        String(20), nullable=True, index=True
-    )
-    validation_errors: Mapped[Optional[List[Any]]] = mapped_column(JSON_TYPE, nullable=True)
-    extraction_errors: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON_TYPE, nullable=True)
-    cert_extraction_status: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-
-    # Timestamps
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
-    )
-    scraped_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    # Relationships
-    scrape_job: Mapped[Optional["ScrapeJob"]] = relationship(
-        "ScrapeJob", back_populates="projects", foreign_keys=[scrape_job_id]
-    )
 
 
 class ScrapeJob(Base):
@@ -137,14 +108,16 @@ class ScrapeJob(Base):
     headless: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     max_workers: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
     status: Mapped[str] = mapped_column(
-        String(20), default="PENDING", nullable=False
-    )  # PENDING, RUNNING, COMPLETED, FAILED, CANCELLED
+        String(50), default="PENDING", nullable=False
+    )  # PENDING, RUNNING, COMPLETED, COMPLETED_WITH_ERRORS, FAILED, CANCELLED
     projects_found: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     projects_extracted: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     projects_failed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     current_page: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     certificates_extracted: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     certificates_failed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    filters_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON_TYPE, nullable=True)
+    summary_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON_TYPE, nullable=True)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -156,9 +129,6 @@ class ScrapeJob(Base):
     )
 
     # Relationships
-    projects: Mapped[List["Project"]] = relationship(
-        "Project", back_populates="scrape_job", foreign_keys="Project.scrape_job_id"
-    )
     logs: Mapped[List["ScrapeLog"]] = relationship(
         "ScrapeLog", back_populates="job", cascade="all, delete-orphan"
     )

@@ -1,12 +1,18 @@
 """Projects API routes."""
 from __future__ import annotations
 
+import json
+from datetime import datetime
 from typing import List, Optional
 
+import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.core.storage import CSV_EXPORTS_DIR, EXCEL_EXPORTS_DIR
 from app.database.session import get_db
+from app.models.models import Project
 from app.schemas.project import ProjectListResponse, ProjectResponse
 from app.services.project_service import ProjectService
 
@@ -36,6 +42,98 @@ def list_projects(
         project_type=project_type,
         sort_by=sort_by,
         sort_dir=sort_dir,
+    )
+
+
+@router.get("/export/csv")
+def export_projects_csv(
+    district: Optional[str] = Query(default=None),
+    status: Optional[str] = Query(default=None),
+    project_type: Optional[str] = Query(default=None),
+    search: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    """Export filtered projects from PostgreSQL to a designated CSV file."""
+    query = db.query(Project)
+    if district:
+        query = query.filter(Project.district.ilike(f"%{district.strip()}%"))
+    if status:
+        query = query.filter(Project.project_status.ilike(f"%{status.strip()}%"))
+    if project_type:
+        query = query.filter(Project.project_type.ilike(f"%{project_type.strip()}%"))
+    if search:
+        s = f"%{search.strip()}%"
+        query = query.filter(
+            Project.project_name.ilike(s) | Project.rera_id.ilike(s) | Project.promoter_details.ilike(s)
+        )
+
+    projects = query.order_by(Project.date_of_registration.desc()).all()
+    rows = []
+    for p in projects:
+        d = {col.name: getattr(p, col.name) for col in Project.__table__.columns}
+        for k, v in d.items():
+            if isinstance(v, (dict, list)):
+                d[k] = json.dumps(v, ensure_ascii=False) if v else ""
+        rows.append(d)
+
+    df = pd.DataFrame(rows)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    export_filename = f"projects_export_{timestamp}.csv"
+    CSV_EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    export_path = CSV_EXPORTS_DIR / export_filename
+    df.to_csv(export_path, index=False, encoding="utf-8-sig")
+
+    return FileResponse(
+        path=str(export_path),
+        filename=export_filename,
+        media_type="text/csv",
+    )
+
+
+@router.get("/export/excel")
+def export_projects_excel(
+    district: Optional[str] = Query(default=None),
+    status: Optional[str] = Query(default=None),
+    project_type: Optional[str] = Query(default=None),
+    search: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    """Export filtered projects from PostgreSQL to a designated Excel file."""
+    query = db.query(Project)
+    if district:
+        query = query.filter(Project.district.ilike(f"%{district.strip()}%"))
+    if status:
+        query = query.filter(Project.project_status.ilike(f"%{status.strip()}%"))
+    if project_type:
+        query = query.filter(Project.project_type.ilike(f"%{project_type.strip()}%"))
+    if search:
+        s = f"%{search.strip()}%"
+        query = query.filter(
+            Project.project_name.ilike(s) | Project.rera_id.ilike(s) | Project.promoter_details.ilike(s)
+        )
+
+    projects = query.order_by(Project.date_of_registration.desc()).all()
+    rows = []
+    for p in projects:
+        d = {col.name: getattr(p, col.name) for col in Project.__table__.columns}
+        for k, v in d.items():
+            if isinstance(v, (dict, list)):
+                d[k] = json.dumps(v, ensure_ascii=False)[:32000] if v else ""
+            elif isinstance(v, str) and len(v) > 32000:
+                d[k] = v[:32000]
+        rows.append(d)
+
+    df = pd.DataFrame(rows)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    export_filename = f"projects_export_{timestamp}.xlsx"
+    EXCEL_EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    export_path = EXCEL_EXPORTS_DIR / export_filename
+    df.to_excel(export_path, index=False, engine="openpyxl")
+
+    return FileResponse(
+        path=str(export_path),
+        filename=export_filename,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
 

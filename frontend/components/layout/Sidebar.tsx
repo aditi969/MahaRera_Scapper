@@ -9,6 +9,7 @@ import {
   BarChart3,
   MapPin,
   Terminal,
+  ScanEye,
   ShieldCheck,
   Activity,
   Layers,
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { label: "Analytics", href: "/analytics", icon: BarChart3 },
   { label: "Interactive Map", href: "/map", icon: MapPin },
   { label: "Scraper Control", href: "/scraper", icon: Terminal },
+  { label: "CAPTCHA Health", href: "/captcha", icon: ScanEye },
   { label: "Data Quality", href: "/data-quality", icon: ShieldCheck },
   { label: "System Status", href: "/system", icon: Activity },
 ];

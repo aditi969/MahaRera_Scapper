@@ -235,3 +235,51 @@ export interface ScrapePreviewResponse {
   sample_records: ScrapePreviewRecord[];
   filters_applied: Record<string, any>;
 }
+
+export interface CaptchaHealthData {
+  status: "healthy" | "degraded" | "unhealthy";
+  status_label: string;
+  timestamp: string;
+  engine: {
+    tesseract: {
+      installed: boolean;
+      path?: string | null;
+      version?: string | null;
+    };
+    opencv: {
+      installed: boolean;
+      version?: string | null;
+      clahe_supported: boolean;
+    };
+    pillow: {
+      installed: boolean;
+      version?: string | null;
+    };
+  };
+  self_test?: {
+    executed: boolean;
+    passed: boolean;
+    latency_ms: number;
+    test_expected?: string;
+    test_recognized?: string;
+    error?: string | null;
+  } | null;
+  metrics: {
+    total_attempts: number;
+    total_accepted: number;
+    total_rejected: number;
+    total_blocked: number;
+    total_refreshes: number;
+    solve_rate_percent: number;
+    avg_attempts_per_solve: number;
+    last_attempt_at?: string | null;
+    last_solved_at?: string | null;
+    recent_events: Array<{
+      id: number;
+      job_id: string;
+      level: string;
+      message: string;
+      timestamp?: string | null;
+    }>;
+  };
+}

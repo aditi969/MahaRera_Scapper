@@ -211,9 +211,10 @@ def run_isolated_scraper(
     if not name_parts:
         name_parts.append("Maharashtra")
     if scrape_all_pages or not end_page or end_page <= 0:
-        name_parts.append(f"Pages_{start_page}_to_All")
+        page_tag = f"{start_page}_to_All"
     else:
-        name_parts.append(f"Pages_{start_page}_to_{end_page}")
+        page_tag = f"{start_page}_to_{end_page}"
+    name_parts.append(f"Pages_{page_tag}")
 
     named_prefix = "_".join(name_parts)
     named_csv = csv_dir / f"{named_prefix}.csv"

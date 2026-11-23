@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.api.routes.analytics import router as analytics_router
 from app.api.routes.data_quality import router as data_quality_router
+from app.api.routes.health import router as health_router
 from app.api.routes.projects import router as projects_router
 from app.api.routes.scraper import router as scraper_router
 from app.api.routes.websocket import router as ws_router
@@ -62,25 +63,12 @@ app.add_middleware(
 )
 
 # Include API routers
+app.include_router(health_router, prefix="/api")
 app.include_router(projects_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api")
 app.include_router(data_quality_router, prefix="/api")
 app.include_router(scraper_router, prefix="/api")
 app.include_router(ws_router)
-
-
-@app.get("/api/health", tags=["System"])
-def health_check(db: Session = Depends(get_db)):
-    """System health check and database connectivity verification."""
-    total_projects = db.query(Project).count()
-    return {
-        "status": "healthy",
-        "app_name": "RERA Insight",
-        "version": "1.0.0",
-        "database": "connected",
-        "total_projects": total_projects,
-        "timestamp": datetime.now().isoformat(),
-    }
 
 
 if __name__ == "__main__":

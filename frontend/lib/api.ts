@@ -171,8 +171,32 @@ export async function fetchHealth(): Promise<{
   version: string;
   database: string;
   total_projects: number;
+  captcha?: {
+    status: string;
+    status_label: string;
+    tesseract_version?: string | null;
+    opencv_version?: string | null;
+    solve_rate_percent: number;
+    total_attempts: number;
+    total_accepted: number;
+  };
   timestamp: string;
 }> {
   return request("/api/health");
+}
+
+export async function fetchCaptchaHealth(runTest: boolean = true): Promise<import("../types").CaptchaHealthData> {
+  return request<import("../types").CaptchaHealthData>(`/api/health/captcha?run_test=${runTest}`);
+}
+
+export async function testCaptchaOcr(): Promise<{
+  executed: boolean;
+  passed: boolean;
+  latency_ms: number;
+  test_expected?: string;
+  test_recognized?: string;
+  error?: string | null;
+}> {
+  return request("/api/health/captcha/test", { method: "POST" });
 }
 

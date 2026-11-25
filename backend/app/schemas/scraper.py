@@ -65,6 +65,10 @@ class ScrapeJobResponse(BaseModel):
     current_page: int = 1
     certificates_extracted: int = 0
     certificates_failed: int = 0
+    captcha_attempts: int = 0
+    captcha_solved: int = 0
+    captcha_retries: int = 0
+    captcha_failed: int = 0
     filters_json: Optional[Dict[str, Any]] = None
     summary_json: Optional[Dict[str, Any]] = None
     error_message: Optional[str] = None

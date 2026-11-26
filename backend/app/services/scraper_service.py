@@ -228,9 +228,38 @@ class ScraperService:
     def _stream_process_output(self, job_id: str, proc: subprocess.Popen):
         try:
             if proc.stdout:
+                import json
                 for line in iter(proc.stdout.readline, ""):
                     line_str = line.strip()
                     if line_str:
+                        # Intercept live scraped project record for real-time frontend streaming
+                        if line_str.startswith("__PROJECT_SCRAPED__:"):
+                            try:
+                                json_part = line_str.split("__PROJECT_SCRAPED__:", 1)[1]
+                                proj_obj = json.loads(json_part)
+                                self.broadcast(job_id, {
+                                    "type": "project_scraped",
+                                    "project": proj_obj,
+                                    "timestamp": datetime.now().isoformat()
+                                })
+                            except Exception:
+                                pass
+                            continue
+
+                        # Intercept live stats synchronization for real-time dashboard cards
+                        if line_str.startswith("__JOB_STATS__:"):
+                            try:
+                                json_part = line_str.split("__JOB_STATS__:", 1)[1]
+                                stats_obj = json.loads(json_part)
+                                self.broadcast(job_id, {
+                                    "type": "job_stats",
+                                    "summary": stats_obj,
+                                    "timestamp": datetime.now().isoformat()
+                                })
+                            except Exception:
+                                pass
+                            continue
+
                         # Filter out internal ChromeDriver C++ binary addresses (e.g. "(No symbol) [0x7ff...]")
                         if line_str.startswith("(No symbol) [") or line_str == "Stacktrace:" or line_str.startswith("GetHandleVerifier [0x"):
                             continue

@@ -139,12 +139,20 @@ def run_isolated_scraper(
                 try:
                     live_stats = worker.checkpoint_manager.get_summary_stats()
                     job_rec.summary_json = live_stats
-                    if live_stats.get("total_discovered", 0) > 0:
-                        job_rec.projects_found = max(live_stats["total_discovered"], job_rec.projects_found or 0)
-                    if live_stats.get("successful_scraped", 0) > 0:
-                        job_rec.projects_extracted = max(live_stats["successful_scraped"], job_rec.projects_extracted or 0)
+                    disc = live_stats.get("total_discovered", 0)
+                    suc = live_stats.get("successfully_scraped", 0) or live_stats.get("successful_scraped", 0)
+                    saved = live_stats.get("total_saved_or_updated", 0)
+                    rec_len = len(live_stats.get("project_records", []))
+                    
+                    if disc > 0:
+                        job_rec.projects_found = max(disc, job_rec.projects_found or 0)
+                    # projects_extracted in DB represents projects successfully scraped / processed in this job
+                    job_rec.projects_extracted = max(suc, saved, rec_len, job_rec.projects_extracted or 0)
                     if live_stats.get("failed_projects", 0) > 0:
                         job_rec.projects_failed = live_stats["failed_projects"]
+
+                    # Stream live stats to WebSocket subscribers via stdout
+                    print(f"__JOB_STATS__:{json.dumps(live_stats)}", flush=True)
                 except Exception:
                     pass
 
@@ -162,6 +170,33 @@ def run_isolated_scraper(
         try:
             pipeline.ingest_project(row_dict, job_id=job_id)
             db.commit()
+
+            # Stream live scraped project details to frontend in real time
+            clean_rera_id = str(row_dict.get("Registration Number") or row_dict.get("Rera ID") or row_dict.get("rera_id") or "").strip()
+            p_name = str(row_dict.get("Project Name") or row_dict.get("project_name") or "").strip()
+            p_status = str(row_dict.get("ProjectStatus") or row_dict.get("Project Status") or "Active").strip()
+            p_district = str(row_dict.get("District") or district_name or "").strip()
+            p_comp = str(row_dict.get("Project proposed completion date revised") or row_dict.get("Project proposed completion date original") or "").strip()
+
+            total_bldgs = 0
+            bld_info = row_dict.get("building_details")
+            if isinstance(bld_info, dict):
+                id_list = bld_info.get("Identification of Building", [])
+                total_bldgs = len(id_list) if isinstance(id_list, list) else 1
+
+            live_record = {
+                "rera_id": clean_rera_id,
+                "project_name": p_name,
+                "project_status": p_status,
+                "district": p_district,
+                "completion_date": p_comp,
+                "promoter_details": str(row_dict.get("Promoter_Details") or "")[:120],
+                "action": "SCRAPED_OK",
+                "decision_status": "NEW" if clean_rera_id not in existing_projects_map else "UPDATED",
+                "total_buildings": total_bldgs,
+                "timestamp": datetime.now().strftime("%H:%M:%S")
+            }
+            print(f"__PROJECT_SCRAPED__:{json.dumps(live_record)}", flush=True)
         except Exception as ing_e:
             db.rollback()
             log_callback("WARNING", f"Database incremental upsert error: {ing_e}")

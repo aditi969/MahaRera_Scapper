@@ -102,3 +102,35 @@ class ScrapePreviewResponse(BaseModel):
     existing_projects: List[Dict[str, Any]]
     sample_records: List[Dict[str, Any]]
     filters_applied: Dict[str, Any]
+
+
+class ScrapedProjectItem(BaseModel):
+    rera_id: str
+    project_name: Optional[str] = None
+    project_status: Optional[str] = None
+    project_type: Optional[str] = None
+    district: Optional[str] = None
+    taluka: Optional[str] = None
+    locality: Optional[str] = None
+    pin_code: Optional[str] = None
+    promoter_details: Optional[str] = None
+    proposed_completion_date: Optional[str] = None
+    last_modified: Optional[str] = None
+    website_last_modified: Optional[str] = None
+    stored_last_modified: Optional[str] = None
+    action: Optional[str] = None
+    decision_status: Optional[str] = None  # NEW, UPDATED, UNCHANGED_SKIPPED, FAILED
+    total_buildings: Optional[int] = 0
+    bank_name: Optional[str] = None
+    raw_data: Optional[Dict[str, Any]] = None
+
+
+class JobScrapedDataResponse(BaseModel):
+    job_id: str
+    district_name: str
+    total_count: int
+    scraped_count: int
+    skipped_count: int
+    failed_count: int
+    projects: List[ScrapedProjectItem]
+    export_files: Dict[str, Optional[str]]

@@ -16,9 +16,15 @@ import os
 from pathlib import Path
 from typing import Dict, Optional
 
-# Resolve root directory: d:\Rera Web App\scarpping\scarpping
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-STORAGE_DIR = PROJECT_ROOT / "storage"
+# Resolve directory: supports storage in backend/storage or root/storage
+_DIR = Path(__file__).resolve()
+BACKEND_ROOT = _DIR.parents[2]
+PROJECT_ROOT = _DIR.parents[3] if len(_DIR.parents) > 3 else BACKEND_ROOT
+
+if (BACKEND_ROOT / "storage").exists() or not (PROJECT_ROOT / "storage").exists():
+    STORAGE_DIR = BACKEND_ROOT / "storage"
+else:
+    STORAGE_DIR = PROJECT_ROOT / "storage"
 
 CSV_RAW_DIR = STORAGE_DIR / "csv" / "raw"
 CSV_PROCESSED_DIR = STORAGE_DIR / "csv" / "processed"

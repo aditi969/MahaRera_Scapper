@@ -1,0 +1,33 @@
+{
+  "scraped_projects": [
+    "https://maharerait.maharashtra.gov.in/public/project/view/379",
+    "https://maharerait.maharashtra.gov.in/public/project/view/407",
+    "https://maharerait.maharashtra.gov.in/public/project/view/432",
+    "https://maharerait.maharashtra.gov.in/public/project/view/433",
+    "https://maharerait.maharashtra.gov.in/public/project/view/443",
+    "https://maharerait.maharashtra.gov.in/public/project/view/451",
+    "https://maharerait.maharashtra.gov.in/public/project/view/462",
+    "https://maharerait.maharashtra.gov.in/public/project/view/476",
+    "https://maharerait.maharashtra.gov.in/public/project/view/502",
+    "https://maharerait.maharashtra.gov.in/public/project/view/537"
+  ],
+  "scraped_ids": [
+    "P52100002770",
+    "P52100003757",
+    "P52100000015",
+    "P52100000784",
+    "P52100000144",
+    "P52100012123",
+    "P52100003479",
+    "P52100000291",
+    "P52100001709",
+    "P52100000013"
+  ],
+  "completed_pages": [
+    1,
+    2,
+    3
+  ],
+  "last_interrupted": null,
+  "job_start_page": 1
+}

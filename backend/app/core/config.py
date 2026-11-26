@@ -9,22 +9,23 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _CURRENT_FILE = Path(__file__).resolve()
-_PROJECT_ROOT = _CURRENT_FILE.parents[3]  # d:\Rera Web App\scarpping\scarpping
-_WORKSPACE_ROOT = _CURRENT_FILE.parents[4] # d:\Rera Web App\scarpping
+_BACKEND_DIR = _CURRENT_FILE.parents[2]   # .../backend
+_PROJECT_ROOT = _CURRENT_FILE.parents[3]  # .../MahaRera_Scapper
+_WORKSPACE_ROOT = _CURRENT_FILE.parents[4] # .../RERA Scraping on Cloud
 
 
 class Settings(BaseSettings):
     """All application settings.
 
     Values are read from environment variables first; a `.env` file in the
-    project root is used as a fallback when running outside Docker.
+    project root or backend directory is used as a fallback when running outside Docker.
     """
 
     model_config = SettingsConfigDict(
         env_file=(
+            str(_BACKEND_DIR / ".env"),
             str(_PROJECT_ROOT / ".env"),
             str(_WORKSPACE_ROOT / ".env"),
-            str(_CURRENT_FILE.parents[2] / ".env"),
             ".env",
             "../.env",
         ),
@@ -35,10 +36,10 @@ class Settings(BaseSettings):
 
     # ── Database ──────────────────────────────────────────────────────────────
     DATABASE_URL: str = (
-        "postgresql://postgres:%40ditiB123@localhost:5432/postgres"
+        "postgresql://postgres:root@localhost:5432/rera_insight"
     )
     ASYNC_DATABASE_URL: str = (
-        "postgresql+asyncpg://postgres:%40ditiB123@localhost:5432/postgres"
+        "postgresql+asyncpg://postgres:root@localhost:5432/rera_insight"
     )
 
     # ── Security ─────────────────────────────────────────────────────────────

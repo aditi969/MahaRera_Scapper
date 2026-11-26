@@ -142,12 +142,17 @@ export interface DataQualityMetrics {
 export interface ScrapeJobSummary {
   total_discovered?: number;
   new_projects?: number;
+  new_projects_found?: number;
   existing_checked?: number;
   unchanged_skipped?: number;
   updated_rescrapped?: number;
+  updated_rescraped?: number;
   successful_scraped?: number;
+  successfully_scraped?: number;
   failed_projects?: number;
   total_saved_or_updated?: number;
+  project_records?: any[];
+  export_files?: Record<string, any>;
   project_details?: Record<string, {
     rera_id?: string;
     project_name?: string;
@@ -234,6 +239,43 @@ export interface ScrapePreviewResponse {
   existing_projects: ScrapePreviewRecord[];
   sample_records: ScrapePreviewRecord[];
   filters_applied: Record<string, any>;
+}
+
+export interface ScrapedProjectItem {
+  rera_id: string;
+  project_name?: string | null;
+  project_status?: string | null;
+  project_type?: string | null;
+  district?: string | null;
+  taluka?: string | null;
+  locality?: string | null;
+  pin_code?: string | null;
+  promoter_details?: string | null;
+  proposed_completion_date?: string | null;
+  last_modified?: string | null;
+  website_last_modified?: string | null;
+  stored_last_modified?: string | null;
+  action?: string | null;
+  decision_status?: string | null;
+  total_buildings?: number;
+  bank_name?: string | null;
+  raw_data?: Record<string, any> | null;
+}
+
+export interface JobScrapedDataResponse {
+  job_id: string;
+  district_name: string;
+  total_count: number;
+  scraped_count: number;
+  skipped_count: number;
+  failed_count: number;
+  projects: ScrapedProjectItem[];
+  export_files: {
+    csv?: string | null;
+    excel?: string | null;
+    json?: string | null;
+    sql?: string | null;
+  };
 }
 
 export interface CaptchaHealthData {

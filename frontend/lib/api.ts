@@ -200,3 +200,7 @@ export async function testCaptchaOcr(): Promise<{
   return request("/api/health/captcha/test", { method: "POST" });
 }
 
+export async function fetchJobScrapedData(jobId: string): Promise<import("../types").JobScrapedDataResponse> {
+  return request<import("../types").JobScrapedDataResponse>(`/api/scraper/jobs/${jobId}/projects`);
+}
+

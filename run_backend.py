@@ -10,9 +10,11 @@ from pathlib import Path
 # Add project root and backend directory to Python sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent
 BACKEND_DIR = PROJECT_ROOT / "backend"
+SCRAPER_DIR = BACKEND_DIR / "scraper"
 
-sys.path.insert(0, str(PROJECT_ROOT))
-sys.path.insert(0, str(BACKEND_DIR))
+for p in (str(PROJECT_ROOT), str(BACKEND_DIR), str(SCRAPER_DIR)):
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
 if __name__ == "__main__":
     import socket
@@ -43,6 +45,7 @@ if __name__ == "__main__":
         host="127.0.0.1",
         port=8000,
         reload=True,
+        app_dir=str(BACKEND_DIR),
         log_level="info",
     )
 

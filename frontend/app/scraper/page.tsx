@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Play,
   Square,
@@ -31,6 +31,9 @@ import {
   Maximize2,
   Minimize2,
   Eraser,
+  Copy,
+  Check,
+  ExternalLink,
 } from "lucide-react";
 
 import { PageHeader } from "../../components/layout/PageHeader";
@@ -44,6 +47,8 @@ import {
   previewScrapeJob,
   clearScrapeJobs,
   deleteScrapeJob,
+  fetchJobScrapedData,
+  fetchProject,
 } from "../../lib/api";
 import {
   ScrapeJobItem,
@@ -51,6 +56,8 @@ import {
   ScrapePreviewResponse,
   ScrapePreviewRecord,
   StartScrapeRequest,
+  ScrapedProjectItem,
+  JobScrapedDataResponse,
 } from "../../types";
 
 // Official 36 Maharashtra Districts & Codes
@@ -142,6 +149,16 @@ export default function ScraperControlPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState<ScrapePreviewResponse | null>(null);
 
+  // Scraped Data & Live Telemetry States
+  const [jobProjectsData, setJobProjectsData] = useState<JobScrapedDataResponse | null>(null);
+  const [loadingJobProjects, setLoadingJobProjects] = useState(false);
+  const [liveScrapedProjects, setLiveScrapedProjects] = useState<ScrapedProjectItem[]>([]);
+  const [activeViewTab, setActiveViewTab] = useState<"projects" | "logs">("projects");
+  const [selectedProjectForDetail, setSelectedProjectForDetail] = useState<ScrapedProjectItem | null>(null);
+  const [projectFilterQuery, setProjectFilterQuery] = useState("");
+  const [projectStatusFilter, setProjectStatusFilter] = useState<string>("ALL");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
   const wsRef = useRef<WebSocket | null>(null);
   const logsEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -182,14 +199,35 @@ export default function ScraperControlPage() {
       if (data.length > 0) {
         const targetId = selectedJobId || activeJob?.job_id || data[0].job_id;
         const target = data.find((j) => j.job_id === targetId) || data[0];
-        setActiveJob(target);
+        setActiveJob((prev) => {
+          if (!prev) return target;
+          return {
+            ...target,
+            projects_extracted: Math.max(target.projects_extracted || 0, prev.projects_extracted || 0),
+          };
+        });
         loadLogs(target.job_id);
+        loadJobProjects(target.job_id);
       } else {
         setActiveJob(null);
         setLogs([]);
+        setJobProjectsData(null);
+        setLiveScrapedProjects([]);
       }
     } catch (err: any) {
       setError(err?.message || "Failed to load scrape jobs from database.");
+    }
+  };
+
+  const loadJobProjects = async (jobId: string) => {
+    setLoadingJobProjects(true);
+    try {
+      const data = await fetchJobScrapedData(jobId);
+      setJobProjectsData(data);
+    } catch (e) {
+      console.error("Failed to load job scraped projects:", e);
+    } finally {
+      setLoadingJobProjects(false);
     }
   };
 
@@ -289,6 +327,38 @@ export default function ScraperControlPage() {
                 created_at: payload.timestamp || new Date().toISOString(),
               },
             ]);
+          } else if (payload.type === "project_scraped" && payload.project) {
+            // Live real-time stream of newly extracted project
+            setLiveScrapedProjects((prev) => {
+              const cleanId = payload.project.rera_id;
+              if (prev.some((p) => p.rera_id === cleanId)) return prev;
+              return [payload.project, ...prev];
+            });
+            setActiveJob((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    projects_extracted: (prev.projects_extracted || 0) + 1,
+                  }
+                : null
+            );
+          } else if (payload.type === "job_stats" && payload.summary) {
+            // Live synchronisation of checkpoint summary stats
+            setActiveJob((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    summary_json: payload.summary,
+                    projects_found: payload.summary.total_discovered || prev.projects_found,
+                    projects_extracted: Math.max(
+                      payload.summary.successfully_scraped || payload.summary.successful_scraped || 0,
+                      payload.summary.total_saved_or_updated || 0,
+                      payload.summary.project_records?.length || 0,
+                      prev.projects_extracted || 0
+                    ),
+                  }
+                : null
+            );
           } else if (payload.type === "complete" || payload.type === "status") {
             setActiveJob((prev) =>
               prev
@@ -393,6 +463,9 @@ export default function ScraperControlPage() {
       setActiveJob(newJob);
       setLogs([]);
       setShowLogs(true);
+      setLiveScrapedProjects([]);
+      setJobProjectsData(null);
+      setActiveViewTab("projects");
       await loadJobs(newJob.job_id);
     } catch (err: any) {
       setError(err?.message || "Failed to start scraping job.");
@@ -440,15 +513,161 @@ export default function ScraperControlPage() {
   // Extract smart summary counters from activeJob
   const summary = activeJob?.summary_json || {};
   const totalDiscovered = summary.total_discovered || activeJob?.projects_found || 0;
-  const newProjects = summary.new_projects || 0;
-  const existingChecked = summary.existing_checked || 0;
-  const unchangedSkipped = summary.unchanged_skipped || 0;
-  const updatedRescrapped = summary.updated_rescrapped || 0;
-  const successfulScraped = summary.successful_scraped || activeJob?.projects_extracted || 0;
-  const failedProjects = summary.failed_projects || activeJob?.projects_failed || 0;
-  const totalSavedOrUpdated = summary.total_saved_or_updated || (newProjects + updatedRescrapped);
+  const newProjects = summary.new_projects ?? summary.new_projects_found ?? 0;
+  const existingChecked = summary.existing_checked ?? 0;
+  const unchangedSkipped = summary.unchanged_skipped ?? 0;
+  const updatedRescrapped = summary.updated_rescrapped ?? summary.updated_rescraped ?? 0;
+  const successfulScraped = summary.successful_scraped ?? summary.successfully_scraped ?? activeJob?.projects_extracted ?? 0;
+  const failedProjects = summary.failed_projects ?? activeJob?.projects_failed ?? 0;
+  const totalSavedOrUpdated = summary.total_saved_or_updated ?? (newProjects + updatedRescrapped);
   const projectDetailsMap = summary.project_details || {};
   const projectDetailsList = Object.values(projectDetailsMap);
+
+  // Combine API-fetched job projects, live WebSocket projects, and checkpoint summary records
+  const displayProjects = useMemo(() => {
+    const map = new Map<string, ScrapedProjectItem>();
+
+    // 1. Projects loaded from backend database API for this job
+    if (jobProjectsData?.projects) {
+      for (const p of jobProjectsData.projects) {
+        if (p.rera_id) {
+          map.set(p.rera_id.trim().toUpperCase(), p);
+        }
+      }
+    }
+
+    // 2. Projects from summary_json checkpoint (records/details)
+    const summaryRecords: any[] = summary.project_records || (summary.project_details ? Object.values(summary.project_details) : []);
+    for (const sr of summaryRecords) {
+      const rid = (sr.rera_id || "").trim().toUpperCase();
+      if (rid) {
+        const existing = map.get(rid);
+        map.set(rid, {
+          rera_id: rid,
+          project_name: sr.project_name || existing?.project_name || "Unknown Project",
+          project_status: sr.status || existing?.project_status || "Active",
+          district: sr.district || existing?.district || activeJob?.district_name,
+          website_last_modified: sr.website_last_modified || existing?.website_last_modified,
+          stored_last_modified: sr.existing_last_modified || sr.stored_last_modified || existing?.stored_last_modified,
+          action: sr.action || existing?.action,
+          decision_status: sr.status || existing?.decision_status,
+          proposed_completion_date: existing?.proposed_completion_date,
+          promoter_details: existing?.promoter_details,
+          bank_name: existing?.bank_name,
+          total_buildings: existing?.total_buildings || 0,
+          raw_data: existing?.raw_data,
+        });
+      }
+    }
+
+    // 3. Live real-time streamed records from WebSocket
+    for (const lp of liveScrapedProjects) {
+      if (lp.rera_id) {
+        const rid = lp.rera_id.trim().toUpperCase();
+        const existing = map.get(rid);
+        map.set(rid, {
+          ...existing,
+          ...lp,
+          decision_status: lp.decision_status || "NEW",
+          action: lp.action || "SCRAPED_OK",
+        });
+      }
+    }
+
+    let list = Array.from(map.values());
+
+    // Filter by text search
+    if (projectFilterQuery.trim()) {
+      const q = projectFilterQuery.toLowerCase().trim();
+      list = list.filter(
+        (p) =>
+          p.rera_id.toLowerCase().includes(q) ||
+          (p.project_name && p.project_name.toLowerCase().includes(q)) ||
+          (p.promoter_details && p.promoter_details.toLowerCase().includes(q)) ||
+          (p.district && p.district.toLowerCase().includes(q))
+      );
+    }
+
+    // Filter by status pill
+    if (projectStatusFilter !== "ALL") {
+      list = list.filter((p) => {
+        const st = (p.decision_status || "").toUpperCase();
+        if (projectStatusFilter === "SCRAPED") {
+          return st === "NEW" || st === "SCRAPED_OK" || st === "UPDATED_RESCRAPPED";
+        }
+        if (projectStatusFilter === "SKIPPED") {
+          return st === "UNCHANGED_SKIPPED" || st === "SKIPPED";
+        }
+        if (projectStatusFilter === "FAILED") {
+          return st === "FAILED";
+        }
+        return true;
+      });
+    }
+
+    return list;
+  }, [jobProjectsData, liveScrapedProjects, summary, activeJob?.district_name, projectFilterQuery, projectStatusFilter]);
+
+  // Dynamic KPIs that stay accurately synchronized in real time with both summary_json and live table
+  const kpiDiscovered = Math.max(totalDiscovered, displayProjects.length);
+  const liveScrapedCount = useMemo(() => {
+    return displayProjects.filter(
+      (p) =>
+        p.action === "SCRAPED_OK" ||
+        p.action === "Scraped & Committed" ||
+        p.decision_status === "NEW" ||
+        p.decision_status === "UPDATED" ||
+        p.decision_status === "SCRAPED_OK"
+    ).length;
+  }, [displayProjects]);
+  const liveSkippedCount = useMemo(() => {
+    return displayProjects.filter(
+      (p) => p.action === "Skip" || p.decision_status === "UNCHANGED_SKIPPED"
+    ).length;
+  }, [displayProjects]);
+  const kpiScrapedOk = Math.max(successfulScraped, liveScrapedCount);
+  const kpiSkipped = Math.max(unchangedSkipped, liveSkippedCount);
+  const kpiSavedOrUpdated = Math.max(totalSavedOrUpdated, kpiScrapedOk);
+  const kpiExistingChecked = Math.max(existingChecked, kpiSkipped + (updatedRescrapped || 0));
+  const kpiNewProjects = Math.max(
+    newProjects,
+    kpiScrapedOk > updatedRescrapped ? kpiScrapedOk - updatedRescrapped : kpiScrapedOk
+  );
+
+  const handleInspectByReraId = async (reraId: string) => {
+    const cleanId = reraId.trim().toUpperCase();
+    const existing = displayProjects.find((p) => p.rera_id.trim().toUpperCase() === cleanId);
+    if (existing && existing.raw_data) {
+      setSelectedProjectForDetail(existing);
+      return;
+    }
+    try {
+      const proj = await fetchProject(cleanId);
+      if (proj) {
+        setSelectedProjectForDetail({
+          rera_id: proj.rera_id,
+          project_name: proj.project_name,
+          project_status: proj.project_status,
+          project_type: proj.project_type,
+          district: proj.district,
+          taluka: proj.taluka,
+          locality: proj.locality,
+          pin_code: proj.pin_code,
+          promoter_details: proj.promoter_details,
+          proposed_completion_date: proj.project_completion_date_revised || proj.project_completion_date_original,
+          last_modified: (proj as any).last_modified,
+          bank_name: proj.bank_name,
+          raw_data: proj as any,
+        });
+        return;
+      }
+    } catch (err) {
+      console.warn("Could not fetch project:", err);
+    }
+    if (existing) {
+      setSelectedProjectForDetail(existing);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -1024,12 +1243,12 @@ export default function ScraperControlPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
                     <div className="p-2.5 bg-gray-50 border border-gray-200/80 rounded-lg">
                       <span className="text-gray-400 text-[10px] uppercase font-bold block">Discovered</span>
-                      <span className="text-base font-bold text-gray-800">{totalDiscovered}</span>
+                      <span className="text-base font-bold text-gray-800">{kpiDiscovered}</span>
                     </div>
 
                     <div className="p-2.5 bg-blue-50/60 border border-blue-200/70 rounded-lg">
                       <span className="text-blue-600 text-[10px] uppercase font-bold block">New Found</span>
-                      <span className="text-base font-bold text-blue-700">{newProjects}</span>
+                      <span className="text-base font-bold text-blue-700">{kpiNewProjects}</span>
                     </div>
 
                     <div className="p-2.5 bg-amber-50/60 border border-amber-200/70 rounded-lg">
@@ -1039,12 +1258,12 @@ export default function ScraperControlPage() {
 
                     <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
                       <span className="text-slate-600 text-[10px] uppercase font-bold block">Unchanged Skipped</span>
-                      <span className="text-base font-bold text-slate-700">{unchangedSkipped}</span>
+                      <span className="text-base font-bold text-slate-700">{kpiSkipped}</span>
                     </div>
 
                     <div className="p-2.5 bg-emerald-50/60 border border-emerald-200/70 rounded-lg">
                       <span className="text-emerald-700 text-[10px] uppercase font-bold block">Scraped OK</span>
-                      <span className="text-base font-bold text-emerald-800">{successfulScraped}</span>
+                      <span className="text-base font-bold text-emerald-800">{kpiScrapedOk}</span>
                     </div>
 
                     <div className="p-2.5 bg-red-50/60 border border-red-200/70 rounded-lg">
@@ -1054,232 +1273,408 @@ export default function ScraperControlPage() {
 
                     <div className="p-2.5 bg-indigo-50/60 border border-indigo-200/70 rounded-lg">
                       <span className="text-indigo-700 text-[10px] uppercase font-bold block">Existing Checked</span>
-                      <span className="text-base font-bold text-indigo-800">{existingChecked}</span>
+                      <span className="text-base font-bold text-indigo-800">{kpiExistingChecked}</span>
                     </div>
 
                     <div className="p-2.5 bg-emerald-50/80 border border-emerald-300 rounded-lg">
                       <span className="text-emerald-800 text-[10px] uppercase font-bold block">Saved / Updated</span>
-                      <span className="text-base font-bold text-emerald-900">{totalSavedOrUpdated}</span>
+                      <span className="text-base font-bold text-emerald-900">{kpiSavedOrUpdated}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Individual Projects Status Table */}
-                {projectDetailsList.length > 0 && (
-                  <div className="pt-2">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-[11px] font-bold text-gray-700 uppercase tracking-wider">
-                        Discovered Projects & Actions Taken ({projectDetailsList.length})
-                      </h4>
-                    </div>
-                    <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-lg overflow-hidden">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-gray-50 text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-200 text-[10px]">
-                          <tr>
-                            <th className="py-2 px-3">RERA ID</th>
-                            <th className="py-2 px-3">Project Name</th>
-                            <th className="py-2 px-2 text-center">Website Date</th>
-                            <th className="py-2 px-2 text-center">Stored Date</th>
-                            <th className="py-2 px-3 text-right">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {projectDetailsList.map((item: any, idx: number) => {
-                            const isSkipped = item.status === "UNCHANGED_SKIPPED";
-                            const isUpdated = item.status === "UPDATED_RESCRAPPED";
-                            const isNew = item.status === "NEW";
-                            const isFailed = item.status === "FAILED";
+                {/* ======================================================== */}
+                {/* SECTION: INTERACTIVE TABS (EXTRACTED DATA VS PROCESS LOGS) */}
+                {/* ======================================================== */}
+                <div className="pt-2 border-t border-gray-100">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 pb-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveViewTab("projects")}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg flex items-center gap-2 transition cursor-pointer ${
+                          activeViewTab === "projects"
+                            ? "bg-blue-600 text-white shadow-xs"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        <Database size={13} className={isRunning ? "text-emerald-300 animate-pulse" : ""} />
+                        <span>Extracted Projects Data</span>
+                        <span
+                          className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                            activeViewTab === "projects" ? "bg-blue-800 text-white" : "bg-gray-200 text-gray-800"
+                          }`}
+                        >
+                          {displayProjects.length}
+                        </span>
+                        {isRunning && (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-200 font-semibold bg-emerald-900/60 px-1.5 py-0.5 rounded">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" /> LIVE
+                          </span>
+                        )}
+                      </button>
 
-                            return (
-                              <tr key={idx} className="hover:bg-gray-50">
-                                <td className="py-2 px-3 font-mono font-medium text-gray-900">
-                                  {item.rera_id || "—"}
-                                </td>
-                                <td className="py-2 px-3 text-gray-800 font-medium truncate max-w-[150px]">
-                                  {item.project_name || "—"}
-                                </td>
-                                <td className="py-2 px-2 text-center font-mono text-[11px] text-gray-600">
-                                  {item.website_last_modified || "—"}
-                                </td>
-                                <td className="py-2 px-2 text-center font-mono text-[11px] text-gray-500">
-                                  {item.stored_last_modified || "None"}
-                                </td>
-                                <td className="py-2 px-3 text-right">
-                                  {isSkipped && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                                      SKIPPED
-                                    </span>
-                                  )}
-                                  {isUpdated && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200">
-                                      UPDATED
-                                    </span>
-                                  )}
-                                  {isNew && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                      NEW
-                                    </span>
-                                  )}
-                                  {isFailed && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700 border border-red-200">
-                                      FAILED
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                      <button
+                        type="button"
+                        onClick={() => setActiveViewTab("logs")}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg flex items-center gap-2 transition cursor-pointer ${
+                          activeViewTab === "logs"
+                            ? "bg-gray-900 text-white shadow-xs"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        <Terminal size={13} />
+                        <span>Diagnostics & Logs</span>
+                        <span
+                          className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                            activeViewTab === "logs" ? "bg-gray-700 text-white" : "bg-gray-200 text-gray-800"
+                          }`}
+                        >
+                          {logs.length}
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Quick Export Downloads for Active Job */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-semibold text-gray-400 mr-1 hidden sm:inline">Extract:</span>
+                      <a
+                        href={`http://127.0.0.1:8000/api/scraper/jobs/${activeJob.job_id}/export?format=csv`}
+                        download
+                        className="px-2 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition flex items-center gap-1 shadow-2xs"
+                        title="Download CSV for this job"
+                      >
+                        <Download size={11} /> CSV
+                      </a>
+                      <a
+                        href={`http://127.0.0.1:8000/api/scraper/jobs/${activeJob.job_id}/export?format=excel`}
+                        download
+                        className="px-2 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition flex items-center gap-1 shadow-2xs"
+                        title="Download Excel for this job"
+                      >
+                        <FileSpreadsheet size={11} /> Excel
+                      </a>
+                      <a
+                        href={`http://127.0.0.1:8000/api/scraper/jobs/${activeJob.job_id}/export?format=json`}
+                        download
+                        className="px-2 py-1 text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-md transition flex items-center gap-1 shadow-2xs"
+                        title="Download JSON for this job"
+                      >
+                        <Download size={11} /> JSON
+                      </a>
                     </div>
                   </div>
-                )}
+
+                  {/* TAB 1: EXTRACTED PROJECTS TABLE VIEW */}
+                  {activeViewTab === "projects" && (
+                    <div className="space-y-3 pt-2">
+                      {/* Search & Status Filters */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 bg-gray-50 p-2.5 rounded-lg border border-gray-200">
+                        <div className="relative flex-1 min-w-[200px]">
+                          <Search size={13} className="absolute left-2.5 top-2.5 text-gray-400" />
+                          <input
+                            type="text"
+                            value={projectFilterQuery}
+                            onChange={(e) => setProjectFilterQuery(e.target.value)}
+                            placeholder="Filter by RERA ID, project name, promoter..."
+                            className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-1 overflow-x-auto text-[11px]">
+                          {["ALL", "SCRAPED", "SKIPPED", "FAILED"].map((f) => (
+                            <button
+                              key={f}
+                              type="button"
+                              onClick={() => setProjectStatusFilter(f)}
+                              className={`px-2 py-1 rounded font-medium transition cursor-pointer ${
+                                projectStatusFilter === f
+                                  ? "bg-white text-blue-700 font-bold border border-blue-200 shadow-2xs"
+                                  : "text-gray-600 hover:text-gray-900"
+                              }`}
+                            >
+                              {f === "ALL"
+                                ? "All"
+                                : f === "SCRAPED"
+                                ? "Scraped OK"
+                                : f === "SKIPPED"
+                                ? "Skipped"
+                                : "Failed"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Project List Table */}
+                      {loadingJobProjects && displayProjects.length === 0 ? (
+                        <div className="p-8 text-center text-gray-500 text-xs flex flex-col items-center gap-2">
+                          <RefreshCw size={18} className="animate-spin text-blue-600" />
+                          <span>Loading extracted records for this job...</span>
+                        </div>
+                      ) : displayProjects.length === 0 ? (
+                        <div className="p-8 text-center text-gray-400 bg-gray-50 border border-dashed border-gray-200 rounded-xl text-xs space-y-1">
+                          <Database size={24} className="mx-auto text-gray-300" />
+                          <p className="font-semibold text-gray-600">No project records extracted yet</p>
+                          <p className="text-[11px] text-gray-400">
+                            {isRunning
+                              ? "Scraping in progress... As each page is scraped, projects will appear here in real time."
+                              : "No project records were found for this job. Launch a scraping job to extract live records."}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="max-h-[380px] overflow-y-auto border border-gray-200 rounded-lg overflow-hidden shadow-2xs">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-gray-50 text-gray-600 uppercase font-semibold text-[10px] border-b border-gray-200 sticky top-0 z-10">
+                              <tr>
+                                <th className="py-2.5 px-3">RERA ID</th>
+                                <th className="py-2.5 px-3">Project Name & District</th>
+                                <th className="py-2.5 px-2 text-center">Status / Action</th>
+                                <th className="py-2.5 px-2 text-center">Website Date</th>
+                                <th className="py-2.5 px-2 text-center">Completion</th>
+                                <th className="py-2.5 px-3 text-right">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 bg-white">
+                              {displayProjects.map((item, idx) => {
+                                const isSkipped =
+                                  item.decision_status === "UNCHANGED_SKIPPED" || item.decision_status === "SKIPPED";
+                                const isUpdated = item.decision_status === "UPDATED_RESCRAPPED";
+                                const isFailed = item.decision_status === "FAILED";
+
+                                return (
+                                  <tr
+                                    key={idx}
+                                    onClick={() => setSelectedProjectForDetail(item)}
+                                    className="hover:bg-blue-50/50 cursor-pointer transition group"
+                                  >
+                                    <td className="py-2.5 px-3 font-mono font-bold text-gray-900 whitespace-nowrap">
+                                      <span className="group-hover:text-blue-600 transition underline-offset-2">
+                                        {item.rera_id}
+                                      </span>
+                                    </td>
+                                    <td className="py-2.5 px-3 max-w-[200px]">
+                                      <div
+                                        className="font-semibold text-gray-800 truncate"
+                                        title={item.project_name || ""}
+                                      >
+                                        {item.project_name || "—"}
+                                      </div>
+                                      <div className="text-[10px] text-gray-400 truncate">
+                                        {item.district || "Maharashtra"}{" "}
+                                        {item.promoter_details ? `• ${item.promoter_details}` : ""}
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                                      {isSkipped ? (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                                          SKIPPED (Up to Date)
+                                        </span>
+                                      ) : isUpdated ? (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                                          UPDATED (Re-scraped)
+                                        </span>
+                                      ) : isFailed ? (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200">
+                                          FAILED
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                          SCRAPED OK
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="py-2.5 px-2 text-center font-mono text-[11px] text-gray-600 whitespace-nowrap">
+                                      {item.website_last_modified || "—"}
+                                    </td>
+                                    <td className="py-2.5 px-2 text-center font-mono text-[11px] text-gray-600 whitespace-nowrap">
+                                      {item.proposed_completion_date || "—"}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedProjectForDetail(item);
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition shadow-2xs cursor-pointer"
+                                        title="Inspect full scraped project dossier"
+                                      >
+                                        <Eye size={11} />
+                                        <span>Inspect Data</span>
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* TAB 2: DIAGNOSTICS & PROCESS LOGS VIEW */}
+                  {activeViewTab === "logs" && (
+                    <div className="pt-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 bg-gray-50 p-2.5 rounded-lg border border-gray-200">
+                        <div className="flex items-center gap-2">
+                          <Terminal size={15} className="text-gray-500" />
+                          <span className="text-xs font-semibold text-gray-700">Live Scraper Console</span>
+                          <span className="px-1.5 py-0.5 text-[10px] bg-gray-200/80 text-gray-700 rounded-full font-mono">
+                            {logs.length} lines
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {/* Search / Filter input */}
+                          <div className="relative">
+                            <Search size={12} className="absolute left-2 top-2 text-gray-400" />
+                            <input
+                              type="text"
+                              value={logSearchQuery}
+                              onChange={(e) => setLogSearchQuery(e.target.value)}
+                              placeholder="Filter logs..."
+                              className="pl-6 pr-2 py-1 text-[11px] bg-white border border-gray-200 rounded-md w-28 focus:w-40 focus:outline-hidden focus:border-blue-400 transition-all font-sans"
+                            />
+                          </div>
+
+                          {/* Auto-scroll toggle */}
+                          <button
+                            onClick={() => setAutoScrollLogs(!autoScrollLogs)}
+                            className={`px-2 py-1 text-[11px] font-medium rounded border transition flex items-center gap-1 cursor-pointer ${
+                              autoScrollLogs
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+                            }`}
+                            title={autoScrollLogs ? "Auto-scroll ON (click to pause)" : "Auto-scroll PAUSED (click to resume)"}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${autoScrollLogs ? "bg-blue-600 animate-pulse" : "bg-gray-400"}`}
+                            />
+                            <span>Auto-scroll</span>
+                          </button>
+
+                          {/* Clear Logs */}
+                          <button
+                            onClick={handleClearLogs}
+                            disabled={logs.length === 0}
+                            className="p-1 px-2 text-[11px] font-medium text-gray-600 hover:text-gray-900 bg-white hover:bg-gray-100 border border-gray-200 rounded transition flex items-center gap-1 disabled:opacity-40 cursor-pointer"
+                            title="Clear logs from view"
+                          >
+                            <Eraser size={12} />
+                            <span>Clear</span>
+                          </button>
+
+                          {/* Download Logs */}
+                          <button
+                            onClick={handleDownloadLogs}
+                            disabled={logs.length === 0}
+                            className="p-1 px-2 text-[11px] font-medium text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded transition flex items-center gap-1 disabled:opacity-40 cursor-pointer"
+                            title="Download entire log audit trail as text file"
+                          >
+                            <Download size={12} />
+                            <span>Download</span>
+                          </button>
+
+                          {/* Maximize / Standard size toggle */}
+                          <button
+                            onClick={() => setIsMaximizedLogs(!isMaximizedLogs)}
+                            className="p-1 px-1.5 text-gray-600 hover:text-gray-900 bg-white hover:bg-gray-100 border border-gray-200 rounded transition cursor-pointer"
+                            title={isMaximizedLogs ? "Restore normal size" : "Expand logs viewport"}
+                          >
+                            {isMaximizedLogs ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`mt-2 bg-gray-950 rounded-lg p-3 text-xs font-mono text-gray-200 overflow-y-auto space-y-1.5 shadow-inner border border-gray-800 transition-all ${
+                          isMaximizedLogs ? "h-[540px]" : "h-96"
+                        }`}
+                      >
+                        {logs.length === 0 ? (
+                          <div className="text-gray-500 italic p-4 text-center">
+                            Waiting for task execution logs... Launch or select a scraping job to inspect real-time events.
+                          </div>
+                        ) : (
+                          logs
+                            .filter((l) =>
+                              logSearchQuery
+                                ? l.message.toLowerCase().includes(logSearchQuery.toLowerCase()) ||
+                                  l.level.toLowerCase().includes(logSearchQuery.toLowerCase())
+                                : true
+                            )
+                            .map((log, index) => {
+                              const isSuccess =
+                                log.level === "SUCCESS" || log.message.includes("✅") || log.message.includes("Success");
+                              const isWarn =
+                                log.level === "WARNING" || log.message.includes("⚠️") || log.message.includes("Warning");
+                              const isErr =
+                                log.level === "ERROR" || log.message.includes("❌") || log.message.includes("💥");
+
+                              // Check if this log event mentions a RERA ID so user can inspect it with one click
+                              const reraMatch = log.message.match(/P[0-9]{11}/);
+
+                              return (
+                                <div
+                                  key={index}
+                                  className="flex items-start gap-2 leading-relaxed hover:bg-gray-900/60 p-0.5 rounded transition"
+                                >
+                                  <span className="text-gray-500 shrink-0 text-[10px] select-none pt-0.5">
+                                    {new Date(log.created_at).toLocaleTimeString()}
+                                  </span>
+                                  <span
+                                    className={`shrink-0 font-bold text-[9px] px-1.5 py-0.2 rounded border uppercase tracking-wider ${
+                                      isErr
+                                        ? "bg-rose-950 text-rose-300 border-rose-800"
+                                        : isWarn
+                                        ? "bg-amber-950 text-amber-300 border-amber-800"
+                                        : isSuccess
+                                        ? "bg-emerald-950 text-emerald-300 border-emerald-800"
+                                        : "bg-sky-950 text-sky-300 border-sky-800"
+                                    }`}
+                                  >
+                                    {log.level}
+                                  </span>
+                                  <span
+                                    className={`text-[11px] break-all select-text flex-1 ${
+                                      isErr
+                                        ? "text-rose-200"
+                                        : isWarn
+                                        ? "text-amber-200"
+                                        : isSuccess
+                                        ? "text-emerald-200"
+                                        : "text-gray-300"
+                                    }`}
+                                  >
+                                    {log.message}
+                                  </span>
+
+                                  {/* Clickable pill on event to view its extracted data */}
+                                  {reraMatch && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleInspectByReraId(reraMatch[0])}
+                                      className="shrink-0 px-1.5 py-0.5 text-[9px] font-mono font-semibold bg-blue-900/70 hover:bg-blue-700 text-blue-200 hover:text-white rounded border border-blue-600/60 inline-flex items-center gap-1 transition cursor-pointer"
+                                      title={`Inspect scraped data for ${reraMatch[0]}`}
+                                    >
+                                      <Eye size={9} />
+                                      <span>Data</span>
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })
+                        )}
+                        <div ref={logsEndRef} />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="p-8 text-center text-gray-400 text-xs">
                 No active or selected scraping jobs found. Select filters on the left and click Launch.
-              </div>
-            )}
-
-            {/* Enhanced Collapsible Execution Logs Drawer */}
-            {activeJob && (
-              <div className="mt-4 pt-3 border-t border-gray-100">
-                <div className="flex flex-wrap items-center justify-between gap-2 bg-gray-50 p-2.5 rounded-lg border border-gray-200">
-                  <button
-                    onClick={() => setShowLogs(!showLogs)}
-                    className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition"
-                  >
-                    <Terminal size={15} className="text-gray-500" />
-                    <span>Diagnostics & Process Logs</span>
-                    <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-gray-200/80 text-gray-700 rounded-full font-mono">
-                      {logs.length} entries
-                    </span>
-                    {showLogs ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
-                  </button>
-
-                  {showLogs && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {/* Search / Filter input */}
-                      <div className="relative">
-                        <Search size={12} className="absolute left-2 top-2 text-gray-400" />
-                        <input
-                          type="text"
-                          value={logSearchQuery}
-                          onChange={(e) => setLogSearchQuery(e.target.value)}
-                          placeholder="Filter logs..."
-                          className="pl-6 pr-2 py-1 text-[11px] bg-white border border-gray-200 rounded-md w-28 focus:w-40 focus:outline-hidden focus:border-blue-400 transition-all font-sans"
-                        />
-                      </div>
-
-                      {/* Auto-scroll toggle */}
-                      <button
-                        onClick={() => setAutoScrollLogs(!autoScrollLogs)}
-                        className={`px-2 py-1 text-[11px] font-medium rounded border transition flex items-center gap-1 ${
-                          autoScrollLogs
-                            ? "bg-blue-50 text-blue-700 border-blue-200"
-                            : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
-                        }`}
-                        title={autoScrollLogs ? "Auto-scroll ON (click to pause)" : "Auto-scroll PAUSED (click to resume)"}
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full ${autoScrollLogs ? "bg-blue-600 animate-pulse" : "bg-gray-400"}`} />
-                        <span>Auto-scroll</span>
-                      </button>
-
-                      {/* Clear Logs */}
-                      <button
-                        onClick={handleClearLogs}
-                        disabled={logs.length === 0}
-                        className="p-1 px-2 text-[11px] font-medium text-gray-600 hover:text-gray-900 bg-white hover:bg-gray-100 border border-gray-200 rounded transition flex items-center gap-1 disabled:opacity-40"
-                        title="Clear logs from view"
-                      >
-                        <Eraser size={12} />
-                        <span>Clear</span>
-                      </button>
-
-                      {/* Download Logs */}
-                      <button
-                        onClick={handleDownloadLogs}
-                        disabled={logs.length === 0}
-                        className="p-1 px-2 text-[11px] font-medium text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded transition flex items-center gap-1 disabled:opacity-40"
-                        title="Download entire log audit trail as text file"
-                      >
-                        <Download size={12} />
-                        <span>Download</span>
-                      </button>
-
-                      {/* Maximize / Standard size toggle */}
-                      <button
-                        onClick={() => setIsMaximizedLogs(!isMaximizedLogs)}
-                        className="p-1 px-1.5 text-gray-600 hover:text-gray-900 bg-white hover:bg-gray-100 border border-gray-200 rounded transition"
-                        title={isMaximizedLogs ? "Restore normal size" : "Expand logs viewport"}
-                      >
-                        {isMaximizedLogs ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {showLogs && (
-                  <div
-                    className={`mt-2 bg-gray-950 rounded-lg p-3 text-xs font-mono text-gray-200 overflow-y-auto space-y-1.5 shadow-inner border border-gray-800 transition-all ${
-                      isMaximizedLogs ? "h-[540px]" : "h-96"
-                    }`}
-                  >
-                    {logs.length === 0 ? (
-                      <div className="text-gray-500 italic p-4 text-center">
-                        Waiting for task execution logs... Launch or select a scraping job above to inspect real-time events.
-                      </div>
-                    ) : (
-                      logs
-                        .filter((l) =>
-                          logSearchQuery
-                            ? l.message.toLowerCase().includes(logSearchQuery.toLowerCase()) ||
-                              l.level.toLowerCase().includes(logSearchQuery.toLowerCase())
-                            : true
-                        )
-                        .map((log, index) => {
-                          const isSuccess = log.level === "SUCCESS" || log.message.includes("✅") || log.message.includes("Success");
-                          const isWarn = log.level === "WARNING" || log.message.includes("⚠️") || log.message.includes("Warning");
-                          const isErr = log.level === "ERROR" || log.message.includes("❌") || log.message.includes("💥");
-
-                          return (
-                            <div key={index} className="flex items-start gap-2 leading-relaxed hover:bg-gray-900/60 p-0.5 rounded transition">
-                              <span className="text-gray-500 shrink-0 text-[10px] select-none pt-0.5">
-                                {new Date(log.created_at).toLocaleTimeString()}
-                              </span>
-                              <span
-                                className={`shrink-0 font-bold text-[9px] px-1.5 py-0.2 rounded border uppercase tracking-wider ${
-                                  isErr
-                                    ? "bg-rose-950 text-rose-300 border-rose-800"
-                                    : isWarn
-                                    ? "bg-amber-950 text-amber-300 border-amber-800"
-                                    : isSuccess
-                                    ? "bg-emerald-950 text-emerald-300 border-emerald-800"
-                                    : "bg-sky-950 text-sky-300 border-sky-800"
-                                }`}
-                              >
-                                {log.level}
-                              </span>
-                              <span
-                                className={`text-[11px] break-all select-text ${
-                                  isErr
-                                    ? "text-rose-200"
-                                    : isWarn
-                                    ? "text-amber-200"
-                                    : isSuccess
-                                    ? "text-emerald-200"
-                                    : "text-gray-300"
-                                }`}
-                              >
-                                {log.message}
-                              </span>
-                            </div>
-                          );
-                        })
-                    )}
-                    <div ref={logsEndRef} />
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -1376,7 +1771,9 @@ export default function ScraperControlPage() {
                         )}
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <span className="font-semibold text-emerald-600">{job.projects_extracted || 0}</span>
+                        <span className="font-semibold text-emerald-600">
+                          {job.projects_extracted || job.summary_json?.successfully_scraped || job.summary_json?.project_records?.length || 0}
+                        </span>
                         <span className="text-[10px] text-gray-500 ml-1">projects</span>
                       </td>
                       <td className="py-3 px-4 text-center">
@@ -1426,15 +1823,41 @@ export default function ScraperControlPage() {
                             onClick={() => {
                               setActiveJob(job);
                               loadLogs(job.job_id);
+                              loadJobProjects(job.job_id);
                             }}
-                            className={`px-2.5 py-1 text-xs font-medium rounded-md transition ${
+                            className={`px-2.5 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
                               isSelected
-                                ? "bg-blue-600 text-white"
+                                ? "bg-blue-600 text-white font-semibold"
                                 : "bg-gray-100 hover:bg-gray-200 text-gray-700"
                             }`}
                           >
-                            {isSelected ? "Viewing" : "View"}
+                            {isSelected ? "Viewing" : "Select"}
                           </button>
+                          <button
+                            onClick={() => {
+                              setActiveJob(job);
+                              loadLogs(job.job_id);
+                              loadJobProjects(job.job_id);
+                              setActiveViewTab("projects");
+                              window.scrollTo({ top: 350, behavior: "smooth" });
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition shadow-2xs cursor-pointer"
+                            title="View extracted projects data for this job"
+                          >
+                            <Database size={11} />
+                            <span>
+                              View Data ({job.projects_extracted || job.summary_json?.successfully_scraped || job.summary_json?.project_records?.length || 0})
+                            </span>
+                          </button>
+                          <a
+                            href={`http://127.0.0.1:8000/api/scraper/jobs/${job.job_id}/export?format=csv`}
+                            download
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition shadow-2xs"
+                            title="Download CSV dataset for this job"
+                          >
+                            <Download size={11} />
+                            <span>CSV</span>
+                          </a>
                           {job.status !== "RUNNING" && job.status !== "STARTING" && (
                             <button
                               onClick={(e) => {
@@ -1541,6 +1964,198 @@ export default function ScraperControlPage() {
               >
                 Close Preview
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* PROJECT EXTRACTION DOSSIER & RAW DATA MODAL              */}
+      {/* ======================================================== */}
+      {selectedProjectForDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-2xs p-4">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-3xl w-full max-h-[88vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-gray-200 flex items-start justify-between bg-gradient-to-r from-gray-50 to-blue-50/40">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono font-bold text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded border border-blue-200">
+                    {selectedProjectForDetail.rera_id}
+                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    {selectedProjectForDetail.decision_status || selectedProjectForDetail.action || "EXTRACTED"}
+                  </span>
+                  {selectedProjectForDetail.district && (
+                    <span className="text-[10px] font-medium text-gray-600 bg-white px-2 py-0.5 rounded border border-gray-200">
+                      📍 {selectedProjectForDetail.district}
+                    </span>
+                  )}
+                </div>
+                <h3 className="font-bold text-gray-900 text-base">
+                  {selectedProjectForDetail.project_name || "MahaRERA Project"}
+                </h3>
+                {selectedProjectForDetail.promoter_details && (
+                  <p className="text-xs text-gray-500">
+                    Promoter: <span className="font-medium text-gray-700">{selectedProjectForDetail.promoter_details}</span>
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedProjectForDetail(null)}
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body - Scrollable */}
+            <div className="p-5 overflow-y-auto space-y-4 text-xs">
+              {/* KPI Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="p-2.5 bg-gray-50 border border-gray-200 rounded-xl">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase block">Project Status</span>
+                  <span className="font-bold text-gray-800 text-xs">{selectedProjectForDetail.project_status || "Active"}</span>
+                </div>
+                <div className="p-2.5 bg-blue-50/60 border border-blue-200 rounded-xl">
+                  <span className="text-[10px] font-bold text-blue-600 uppercase block">Completion</span>
+                  <span className="font-bold text-blue-900 text-xs">
+                    {selectedProjectForDetail.proposed_completion_date || "—"}
+                  </span>
+                </div>
+                <div className="p-2.5 bg-emerald-50/60 border border-emerald-200 rounded-xl">
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase block">Total Buildings</span>
+                  <span className="font-bold text-emerald-900 text-xs">
+                    {selectedProjectForDetail.total_buildings || 1}
+                  </span>
+                </div>
+                <div className="p-2.5 bg-purple-50/60 border border-purple-200 rounded-xl">
+                  <span className="text-[10px] font-bold text-purple-600 uppercase block">Bank Escrow</span>
+                  <span className="font-bold text-purple-900 text-xs truncate block" title={selectedProjectForDetail.bank_name || ""}>
+                    {selectedProjectForDetail.bank_name || "—"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Detailed Extraction Fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Location & Boundaries Card */}
+                <div className="p-3.5 bg-white border border-gray-200 rounded-xl space-y-2">
+                  <h4 className="font-bold text-gray-900 text-xs flex items-center gap-1.5 pb-1 border-b border-gray-100">
+                    <MapPin size={13} className="text-blue-600" /> Location & Boundaries
+                  </h4>
+                  <div className="space-y-1.5 text-[11px]">
+                    <div className="flex justify-between"><span className="text-gray-500">District:</span><span className="font-medium text-gray-800">{selectedProjectForDetail.district || "—"}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Taluka:</span><span className="font-medium text-gray-800">{selectedProjectForDetail.taluka || "—"}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Locality:</span><span className="font-medium text-gray-800">{selectedProjectForDetail.locality || "—"}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Pincode:</span><span className="font-mono font-medium text-gray-800">{selectedProjectForDetail.pin_code || "—"}</span></div>
+                    {selectedProjectForDetail.raw_data?.boundaries_north && (
+                      <div className="pt-1 text-[10px] text-gray-500 border-t border-gray-100">
+                        <span>Boundaries: N: {selectedProjectForDetail.raw_data.boundaries_north} | S: {selectedProjectForDetail.raw_data.boundaries_south}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Certificates & Last Modified Dates Card */}
+                <div className="p-3.5 bg-white border border-gray-200 rounded-xl space-y-2">
+                  <h4 className="font-bold text-gray-900 text-xs flex items-center gap-1.5 pb-1 border-b border-gray-100">
+                    <Calendar size={13} className="text-emerald-600" /> Certificates & Modified Dates
+                  </h4>
+                  <div className="space-y-1.5 text-[11px]">
+                    <div className="flex justify-between"><span className="text-gray-500">Website Last Modified:</span><span className="font-mono font-semibold text-blue-700">{selectedProjectForDetail.website_last_modified || selectedProjectForDetail.last_modified || "—"}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Stored DB Last Modified:</span><span className="font-mono text-gray-600">{selectedProjectForDetail.stored_last_modified || "—"}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Commencing From:</span><span className="font-mono text-gray-800">{selectedProjectForDetail.raw_data?.commencing_from || "—"}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Ending With:</span><span className="font-mono text-gray-800">{selectedProjectForDetail.raw_data?.ending_with || "—"}</span></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Building & Inventory Details if available */}
+              {selectedProjectForDetail.raw_data?.building_details && (
+                <div className="p-3.5 bg-gray-50/70 border border-gray-200 rounded-xl space-y-2">
+                  <h4 className="font-bold text-gray-900 text-xs flex items-center gap-1.5 pb-1 border-b border-gray-200">
+                    <Building size={13} className="text-purple-600" /> Building & Tower Configuration
+                  </h4>
+                  <pre className="text-[10px] font-mono text-gray-700 overflow-x-auto max-h-32 bg-white p-2.5 rounded-lg border border-gray-200">
+                    {JSON.stringify(selectedProjectForDetail.raw_data.building_details, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {/* Raw Scraped JSON Viewer */}
+              <div className="p-3.5 bg-gray-900 rounded-xl space-y-2 text-gray-200">
+                <div className="flex items-center justify-between pb-1 border-b border-gray-800">
+                  <span className="font-bold text-xs text-gray-300 font-mono">Full Extracted Scraped JSON Payload</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const text = JSON.stringify(selectedProjectForDetail.raw_data || selectedProjectForDetail, null, 2);
+                      navigator.clipboard.writeText(text);
+                      setCopiedId(selectedProjectForDetail.rera_id);
+                      setTimeout(() => setCopiedId(null), 2000);
+                    }}
+                    className="px-2 py-0.5 text-[10px] font-medium bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700 flex items-center gap-1 transition cursor-pointer"
+                  >
+                    {copiedId === selectedProjectForDetail.rera_id ? (
+                      <>
+                        <Check size={11} className="text-emerald-400" />
+                        <span className="text-emerald-400 font-bold">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={11} />
+                        <span>Copy JSON</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <pre className="text-[10px] font-mono text-gray-300 overflow-x-auto max-h-40 p-2 bg-gray-950 rounded-lg border border-gray-800 leading-relaxed">
+                  {JSON.stringify(selectedProjectForDetail.raw_data || selectedProjectForDetail, null, 2)}
+                </pre>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3.5 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+              <a
+                href={`/projects/${selectedProjectForDetail.rera_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition"
+              >
+                <ExternalLink size={12} /> Open Full Project Dossier
+              </a>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const dataStr =
+                      "data:text/json;charset=utf-8," +
+                      encodeURIComponent(
+                        JSON.stringify(selectedProjectForDetail.raw_data || selectedProjectForDetail, null, 2)
+                      );
+                    const downloadAnchor = document.createElement("a");
+                    downloadAnchor.setAttribute("href", dataStr);
+                    downloadAnchor.setAttribute("download", `Project_${selectedProjectForDetail.rera_id}.json`);
+                    document.body.appendChild(downloadAnchor);
+                    downloadAnchor.click();
+                    downloadAnchor.remove();
+                  }}
+                  className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-100 text-xs flex items-center gap-1 transition cursor-pointer"
+                >
+                  <Download size={12} /> Export Project JSON
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedProjectForDetail(null)}
+                  className="px-4 py-1.5 bg-gray-800 text-white font-medium rounded-lg hover:bg-gray-900 text-xs transition cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

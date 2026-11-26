@@ -1,0 +1,27 @@
+# Virtual environments (Windows & Linux)
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Node / Frontend build artifacts
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Git & IDE configs
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Local data & temp caches
+storage/temp/*
+storage/logs/*
+*.log
+*.tmp
+.DS_Store
+Thumbs.db

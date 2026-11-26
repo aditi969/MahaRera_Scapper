@@ -1,54 +1,63 @@
 FROM python:3.11-slim
 
+# ── Environment variables ─────────────────────────────────────────────────────
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH="/app:/app/backend:${PYTHONPATH}" \
+    DEBIAN_FRONTEND=noninteractive
+
 # ── System dependencies ──────────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Tesseract OCR
+    # Tesseract OCR & English language data
     tesseract-ocr \
     tesseract-ocr-eng \
-    # OpenCV headless deps
+    # OpenCV headless & PDF processing libraries
+    libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender-dev \
     libgomp1 \
-    # PDF / image processing
     poppler-utils \
     ghostscript \
-    # Network / SSL
+    # Network / SSL / Utilities
     curl \
     wget \
-    gnupg \
     ca-certificates \
-    # Build tools (for some pip packages)
+    # Build tools for compiled dependencies (psycopg2, etc.)
     gcc \
     g++ \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# ── Google Chrome + ChromeDriver ─────────────────────────────────────────────
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" \
-       > /etc/apt/sources.list.d/google-chrome.list \
+# ── Google Chrome (Official Stable Release) ──────────────────────────────────
+# Direct .deb download avoids deprecated apt-key and guarantees correct dependencies
+RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
     && apt-get update \
-    && apt-get install -y --no-install-recommends google-chrome-stable \
+    && apt-get install -y --no-install-recommends ./google-chrome-stable_current_amd64.deb \
+    && rm google-chrome-stable_current_amd64.deb \
     && rm -rf /var/lib/apt/lists/*
 
-# Install matching ChromeDriver via pip (selenium-manager handles it at runtime,
-# but we also install chromedriver-autoinstall as a fallback)
-RUN pip install --no-cache-dir chromedriver-autoinstall
+# Note: Modern Selenium (4.10+) automatically manages ChromeDriver via built-in
+# Selenium Manager for the installed Google Chrome version. No third-party
+# 'chromedriver-autoinstall' package is needed.
 
 # ── Python dependencies ──────────────────────────────────────────────────────
 WORKDIR /app
 
+# Copy requirements first for Docker layer caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # ── Application code ─────────────────────────────────────────────────────────
+# Copy full codebase (backend, scraper, database schemas, configs)
 COPY . .
+
+# Ensure storage directories exist
+RUN mkdir -p /app/storage/csv /app/storage/excel /app/storage/temp /app/storage/logs
 
 # ── Runtime ─────────────────────────────────────────────────────────────────
 EXPOSE 8000
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
